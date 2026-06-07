@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/portfolio.snapshot.recorded.schema.json",
+  "title": "portfolio.snapshot.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "portfolio.snapshot.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["portfolio_kind"],
+          "properties": {
+            "portfolio_kind": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

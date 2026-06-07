@@ -5,16 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from ellzaf_agent.constants import DEFAULT_MAX_EVENT_BYTES, SUPPORTED_EVENT_TYPES
-from ellzaf_agent.errors import SchemaValidationError
-from ellzaf_agent.resources import list_resource_names, read_json_resource
-from ellzaf_agent.schema import validate_event
-from ellzaf_agent.taxonomy import (
+from agent_tracker.constants import DEFAULT_MAX_EVENT_BYTES, SUPPORTED_EVENT_TYPES
+from agent_tracker.errors import SchemaValidationError
+from agent_tracker.resources import list_resource_names, read_json_resource
+from agent_tracker.schema import validate_event
+from agent_tracker.taxonomy import (
     allowed_mistake_families,
     taxonomy_values,
     validate_mistake_family,
 )
-from ellzaf_agent.testing import assert_valid_ellzaf_events
+from agent_tracker.testing import assert_valid_agent_tracker_events
 
 
 def test_public_schema_files_exist_for_every_event_type() -> None:
@@ -30,7 +30,7 @@ def test_public_schema_files_exist_for_every_event_type() -> None:
         else:
             schema = read_json_resource("schemas", name)
         assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-        assert schema["$id"].startswith("https://ellzaf.com/schemas/ellzaf-agent/")
+        assert schema["$id"].startswith("https://ellzaf.com/schemas/agent-tracker/")
 
 
 def test_taxonomies_are_package_data_and_have_expected_escape_hatch() -> None:
@@ -56,7 +56,7 @@ def test_valid_fixtures_pass_runtime_and_privacy_validation() -> None:
     assert len(fixtures) == 5
     for event in fixtures:
         validate_event(event, max_event_bytes=DEFAULT_MAX_EVENT_BYTES)
-    assert_valid_ellzaf_events(
+    assert_valid_agent_tracker_events(
         fixtures,
         require_mistake_family_for_mistakes=True,
     )
@@ -71,7 +71,7 @@ def test_reporting_fixtures_pass_strict_reporting_profile() -> None:
     assert len(fixtures) >= 10
     for event in fixtures:
         validate_event(event, max_event_bytes=DEFAULT_MAX_EVENT_BYTES)
-    assert_valid_ellzaf_events(fixtures, profile="strict-reporting")
+    assert_valid_agent_tracker_events(fixtures, profile="strict-reporting")
 
 
 @pytest.mark.parametrize(
@@ -87,14 +87,14 @@ def test_invalid_fixtures_fail_for_the_expected_contract_reason(name: str) -> No
         return
 
     with pytest.raises(AssertionError):
-        assert_valid_ellzaf_events(
+        assert_valid_agent_tracker_events(
             [event],
             require_mistake_family_for_mistakes=True,
         )
 
 
 def test_json_files_are_parseable_from_installed_package() -> None:
-    root = Path(__file__).parents[1] / "src" / "ellzaf_agent" / "schemas"
+    root = Path(__file__).parents[1] / "src" / "agent_tracker" / "schemas"
     for path in root.rglob("*.json"):
         assert json.loads(path.read_text(encoding="utf-8"))
 

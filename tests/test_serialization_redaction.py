@@ -9,8 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from ellzaf_agent.redaction import REDACTION_TEXT, redact_payload
-from ellzaf_agent.serialization import strict_json_dumps, strict_json_loads, to_jsonable
+from agent_tracker.redaction import REDACTION_TEXT, redact_payload
+from agent_tracker.serialization import (
+    strict_json_dumps,
+    strict_json_loads,
+    to_jsonable,
+)
 
 
 class Side(Enum):

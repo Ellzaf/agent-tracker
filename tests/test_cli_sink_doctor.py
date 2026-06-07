@@ -4,22 +4,22 @@ import json
 import stat
 from pathlib import Path
 
-from ellzaf_agent import Config, Ellzaf, JsonlSink
-from ellzaf_agent.cli import main
-from ellzaf_agent.doctor import doctor_repo
-from ellzaf_agent.integration import (
-    EllzafIntegrationReport,
+from agent_tracker import AgentTracker, Config, JsonlSink
+from agent_tracker.cli import main
+from agent_tracker.doctor import doctor_repo
+from agent_tracker.integration import (
+    AgentTrackerIntegrationReport,
     IntegrationSurface,
     SourceRef,
     emit_integration_report,
 )
-from ellzaf_agent.resources import read_json_resource
-from ellzaf_agent.serialization import strict_json_dumps
-from ellzaf_agent.sink import read_jsonl_events
+from agent_tracker.resources import read_json_resource
+from agent_tracker.serialization import strict_json_dumps
+from agent_tracker.sink import read_jsonl_events
 
 
 def test_jsonl_sink_redacts_and_appends_events(tmp_path: Path) -> None:
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=None, telemetry_enabled=False)
     )
     raw = client.event(
@@ -52,7 +52,7 @@ def test_cli_print_prompt_emit_sample_and_validate(
 ) -> None:
     assert main(["print-agent-prompt", "--profile", "ebook"]) == 0
     output = capsys.readouterr().out  # type: ignore[attr-defined]
-    assert "Integrate Ellzaf Agent" in output
+    assert "Integrate Ellzaf Agent Tracker" in output
 
     path = tmp_path / "sample.jsonl"
     assert main(["emit-sample", "--profile", "ebook", "--output", str(path)]) == 0
@@ -119,8 +119,8 @@ def test_doctor_repo_finds_ebook_style_surfaces(tmp_path: Path) -> None:
 
 
 def test_emit_integration_report_uses_public_dataclasses(tmp_path: Path) -> None:
-    client = Ellzaf(Config(project="paper-agent", queue_dir=tmp_path))
-    report = EllzafIntegrationReport(
+    client = AgentTracker(Config(project="paper-agent", queue_dir=tmp_path))
+    report = AgentTrackerIntegrationReport(
         project="paper-agent",
         surfaces=(
             IntegrationSurface(

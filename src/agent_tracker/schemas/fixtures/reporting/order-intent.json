@@ -1,0 +1,44 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_reporting_order_intent",
+  "idempotency_key": "fixture/reporting/order-intent",
+  "project": "paper-agent",
+  "agent_id": "local-agent",
+  "run_id": "run_reporting",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "order.intent.recorded",
+  "occurred_at": "2026-06-07T14:33:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["NVDA"],
+  "payload": {
+    "order_intent_id": "order_intent_exit_1",
+    "decision_id": "decision_exit_1",
+    "symbol": "NVDA",
+    "side": "sell",
+    "intended_quantity": "2",
+    "intended_price": "101.00",
+    "currency": "USD",
+    "open_close_effect": "close",
+    "strategy_id": "strat_breakout_quality",
+    "setup": "earnings_gap_hold",
+    "session_date": "2026-06-07",
+    "component": "allocation",
+    "severity": "info"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "agent-tracker-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

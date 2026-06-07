@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/decision.outcome.recorded.schema.json",
+  "title": "decision.outcome.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "decision.outcome.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["decision_id", "outcome_kind"],
+          "properties": {
+            "decision_id": { "type": "string", "minLength": 1 },
+            "outcome_kind": {
+              "enum": [
+                "filled",
+                "rejected",
+                "no_order",
+                "deferred",
+                "expired",
+                "cancelled",
+                "manual_override",
+                "replayed"
+              ]
+            },
+            "outcome_reason": { "type": ["string", "null"] },
+            "linked_event_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^evt_[A-Za-z0-9_\\-]+$"
+              }
+            },
+            "latency_to_outcome_seconds": { "type": ["number", "integer", "null"] },
+            "followed_plan": { "type": ["boolean", "null"] },
+            "changed_by_risk_gate": { "type": ["boolean", "null"] },
+            "changed_by_operator": { "type": ["boolean", "null"] }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/batch.schema.json",
+  "title": "Ellzaf Agent Tracker Event Batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "batch_id",
+    "sent_at",
+    "events"
+  ],
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "pattern": "^batch_[A-Za-z0-9_\\-]+$"
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "event-envelope.schema.json"
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ellzaf-agent"
+name = "agent-tracker"
 version = "0.1.0"
 description = "Telemetry SDK for self-built AI trading agents."
 readme = "README.md"
@@ -44,17 +44,18 @@ langchain = []
 agno = []
 
 [project.scripts]
-ellzaf-agent = "ellzaf_agent.cli:main"
+agent-tracker = "agent_tracker.cli:main"
 
 [project.urls]
 Homepage = "https://ellzaf.com"
 Documentation = "https://ellzaf.com"
+Repository = "https://github.com/Ellzaf/agent-tracker"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-ellzaf_agent = [
+agent_tracker = [
   "prompts/*.md",
   "schemas/*.json",
   "schemas/event-types/*.json",

@@ -1,0 +1,44 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_reporting_replay_result",
+  "idempotency_key": "fixture/reporting/replay-result",
+  "project": "paper-agent",
+  "agent_id": "local-agent",
+  "run_id": "run_reporting",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "replay.result.recorded",
+  "occurred_at": "2026-06-07T14:39:00Z",
+  "received_at": null,
+  "environment": "replay",
+  "symbols": ["NVDA"],
+  "payload": {
+    "suite_name": "open-session-stale-bars",
+    "status": "succeeded",
+    "case_count": 3,
+    "pass_count": 3,
+    "fail_count": 0,
+    "prompt_family": "allocation",
+    "prompt_version": "2026-06-07",
+    "prompt_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "risk_gate_version": "risk-2026-06-07",
+    "replay_suite_version": "replay-1",
+    "scenario_tags": ["stale_market_data", "risk_gate"],
+    "component": "replay",
+    "severity": "info"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "agent-tracker-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-envelope.schema.json",
+  "title": "Ellzaf Agent Tracker Event Envelope",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "event_id",
+    "idempotency_key",
+    "project",
+    "agent_id",
+    "run_id",
+    "event_type",
+    "occurred_at",
+    "environment",
+    "symbols",
+    "payload",
+    "privacy",
+    "sdk"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2026-06-07"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_\\-]+$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "\\s"
+      }
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "[\\s/\\\\\\u0000]"
+      }
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "[\\s/\\\\\\u0000]"
+      }
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[A-Za-z0-9_\\-]+$"
+    },
+    "span_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parent_span_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "agent.run.started",
+        "agent.run.completed",
+        "agent.build.recorded",
+        "llm.call.started",
+        "llm.call.completed",
+        "tool.call.completed",
+        "source.claim.recorded",
+        "market.snapshot.recorded",
+        "memory.read.completed",
+        "decision.proposed",
+        "order.intent.recorded",
+        "decision.outcome.recorded",
+        "risk.check.completed",
+        "trade.rejected",
+        "paper.fill.recorded",
+        "position.snapshot.recorded",
+        "portfolio.snapshot.recorded",
+        "capital.flow.recorded",
+        "performance.snapshot.recorded",
+        "strategy.context.recorded",
+        "replay.result.recorded",
+        "cost.usage.recorded",
+        "error.recorded"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "received_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "development",
+        "paper",
+        "shadow",
+        "replay",
+        "live_observe"
+      ]
+    },
+    "symbols": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "mistake_family": {
+          "type": "string",
+          "pattern": "^([a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*|custom\\.[a-z0-9_.\\-]+)$"
+        },
+        "component": {
+          "type": "string",
+          "enum": [
+            "allocation",
+            "backup_restore",
+            "broker_runner",
+            "chat",
+            "cost",
+            "doctor",
+            "execution",
+            "harness",
+            "integration",
+            "market_data",
+            "memory",
+            "operator_chat",
+            "orchestration",
+            "performance",
+            "portfolio",
+            "privacy",
+            "queue",
+            "replay",
+            "research",
+            "risk_gate",
+            "shadow",
+            "source_collection",
+            "upload",
+            "website"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "error",
+            "critical"
+          ]
+        },
+        "money_impact": {
+          "type": "string",
+          "enum": [
+            "none",
+            "possible",
+            "blocked",
+            "submitted",
+            "filled",
+            "unknown"
+          ]
+        },
+        "blocking_status": {
+          "type": "string",
+          "enum": [
+            "non_blocking",
+            "artifact_blocked",
+            "workflow_deferred",
+            "trading_blocked",
+            "execution_blocked",
+            "unknown"
+          ]
+        },
+        "resolution_status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "queued",
+            "retrying",
+            "resolved",
+            "superseded",
+            "exhausted",
+            "ignored",
+            "false_positive"
+          ]
+        },
+        "next_safe_action": {
+          "type": "string",
+          "enum": [
+            "observe",
+            "retry",
+            "repair_artifact",
+            "block_artifact",
+            "reconcile_broker",
+            "ask_operator",
+            "run_test",
+            "stop_execution"
+          ]
+        },
+        "coverage_status": {
+          "type": "string",
+          "enum": [
+            "implemented",
+            "partial",
+            "missing",
+            "not_found",
+            "not_applicable",
+            "warning"
+          ]
+        },
+        "account_scope_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "full_io",
+        "redaction_version",
+        "contains_prompt_text",
+        "contains_output_text",
+        "contains_broker_payload",
+        "contains_account_identifier",
+        "truncated"
+      ],
+      "properties": {
+        "full_io": {
+          "type": "boolean"
+        },
+        "redaction_version": {
+          "type": "string"
+        },
+        "contains_prompt_text": {
+          "type": "boolean"
+        },
+        "contains_output_text": {
+          "type": "boolean"
+        },
+        "contains_broker_payload": {
+          "type": "boolean"
+        },
+        "contains_account_identifier": {
+          "type": "boolean"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version",
+        "language"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

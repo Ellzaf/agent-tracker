@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/cost.usage.recorded.schema.json",
+  "title": "cost.usage.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "cost.usage.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["provider", "usage_kind", "quantity"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1 },
+            "usage_kind": { "type": "string", "minLength": 1 },
+            "quantity": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  ]
+}

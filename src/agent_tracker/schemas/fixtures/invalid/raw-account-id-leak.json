@@ -1,0 +1,31 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_raw_account_id_leak",
+  "idempotency_key": "fixture/raw-account-id-leak",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_raw_account_id_leak",
+  "event_type": "portfolio.snapshot.recorded",
+  "occurred_at": "2026-06-07T00:06:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": [],
+  "payload": {
+    "portfolio_kind": "paper",
+    "account_id": "acct_live123456789"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": true,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "agent-tracker-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/decision.proposed.schema.json",
+  "title": "decision.proposed",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "decision.proposed" },
+        "payload": {
+          "type": "object",
+          "required": ["decision_kind", "action"],
+          "properties": {
+            "decision_kind": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

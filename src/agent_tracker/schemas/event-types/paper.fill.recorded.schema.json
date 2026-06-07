@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/paper.fill.recorded.schema.json",
+  "title": "paper.fill.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nullableFiniteNumber": {
+      "anyOf": [{ "$ref": "#/$defs/finiteNumber" }, { "type": "null" }]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "paper.fill.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["symbol", "side"],
+          "properties": {
+            "symbol": { "type": "string", "minLength": 1 },
+            "side": { "enum": ["buy", "sell", "short", "cover"] },
+            "fill_id": { "type": ["string", "null"], "minLength": 1 },
+            "position_id": { "type": ["string", "null"], "minLength": 1 },
+            "order_intent_id": { "type": ["string", "null"], "minLength": 1 },
+            "open_close_effect": {
+              "enum": ["open", "increase", "reduce", "close", "unknown", null]
+            },
+            "quantity": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "price": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "fees": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "currency": { "type": ["string", "null"], "minLength": 1 },
+            "fill_source": {
+              "enum": ["paper", "shadow", "replay", "manual_import", null]
+            },
+            "session_date": { "type": ["string", "null"], "format": "date" },
+            "strategy_id": { "type": ["string", "null"], "minLength": 1 },
+            "setup": { "type": ["string", "null"] }
+          }
+        }
+      }
+    }
+  ]
+}

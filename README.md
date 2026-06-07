@@ -1,6 +1,6 @@
-# Ellzaf Agent
+# Ellzaf Agent Tracker
 
-Ellzaf Agent is a Python SDK for AI trading agents.
+Ellzaf Agent Tracker is a Python SDK for AI trading agents.
 
 Install it in your agent repo, send redacted telemetry to Ellzaf, and use that
 data for engineering diagnostics, trading-agent statistics, replay checks, and
@@ -15,7 +15,7 @@ Ellzaf looks at how your agent behaves:
 - what happened in paper trading, shadow trading, or replay;
 - where the agent drifted, used stale data, missed sources, or broke tests.
 
-Ellzaf Agent does not place broker orders, rank stocks, generate buy or sell
+Ellzaf Agent Tracker does not place broker orders, rank stocks, generate buy or sell
 signals, or replace your risk gates. Your agent remains in control of its own
 logic. Ellzaf observes the system and reports engineering, safety, and data
 quality issues.
@@ -70,7 +70,7 @@ Add richer events when you want hosted stats and weekly repair prompts.
 Install in the same Python environment as your trading agent:
 
 ```bash
-python -m pip install ellzaf-agent
+python -m pip install agent-tracker
 ```
 
 From this repository:
@@ -96,7 +96,7 @@ python -m pip install -e ".[aitrade]"
 Create a starter env file:
 
 ```bash
-ellzaf-agent init
+agent-tracker init
 ```
 
 Then set your project values:
@@ -134,11 +134,11 @@ that trace to explain the block, detect stale inputs, and suggest tests or code
 changes.
 
 ```python
-from ellzaf_agent import Ellzaf
+from agent_tracker import AgentTracker
 
-ellzaf = Ellzaf.from_env()
+tracker = AgentTracker.from_env()
 
-with ellzaf.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as run:
+with tracker.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as run:
     run.prompt_version(
         family="allocation",
         version="2026-06-07",
@@ -154,6 +154,7 @@ with ellzaf.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as ru
     )
 
     run.decision_proposed(
+        decision_id="decision_1",
         decision_kind="target_weight",
         action="increase",
         symbol="NVDA",
@@ -189,7 +190,7 @@ with ellzaf.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as ru
 
     run.final_action(action="no_order", reason="risk_gate_rejected")
 
-ellzaf.flush()
+tracker.flush()
 ```
 
 ## Add Trading Stats
@@ -198,7 +199,7 @@ Ellzaf needs trade lifecycle and account context to compute useful stats. Add
 these events when your agent has the data.
 
 ```python
-with ellzaf.run(run_type="paper_fill", symbols=["NVDA"]) as run:
+with tracker.run(run_type="paper_fill", symbols=["NVDA"]) as run:
     run.paper_fill(
         fill_id="fill_1",
         position_id="pos_1",
@@ -242,8 +243,8 @@ with ellzaf.run(run_type="paper_fill", symbols=["NVDA"]) as run:
 Run the readiness check against exported JSONL:
 
 ```bash
-ellzaf-agent validate-jsonl ellzaf-events.jsonl --profile strict-reporting
-ellzaf-agent reporting-readiness ellzaf-events.jsonl
+agent-tracker validate-jsonl ellzaf-events.jsonl --profile strict-reporting
+agent-tracker reporting-readiness ellzaf-events.jsonl
 ```
 
 The readiness report tells you which dashboards Ellzaf can compute from your
@@ -255,23 +256,22 @@ This package ships prompts for Codex, Claude Code, and similar coding agents.
 Run the prompt command inside the repo you want to instrument:
 
 ```bash
-ellzaf-agent print-agent-prompt --profile ebook
+agent-tracker print-agent-prompt --profile ebook
 ```
 
 The `ebook` profile is for agents built from Ellzaf lessons, the Ellzaf
-reference code, or a similar local trading-agent architecture. The command name
-stays short so existing automation can keep using it.
+reference code, or a similar local trading-agent architecture.
 
 For a repo review after integration:
 
 ```bash
-ellzaf-agent print-agent-prompt --profile review
+agent-tracker print-agent-prompt --profile review
 ```
 
 For backend ingestion teams:
 
 ```bash
-ellzaf-agent print-agent-prompt --profile backend
+agent-tracker print-agent-prompt --profile backend
 ```
 
 ## Manual Events
@@ -279,7 +279,7 @@ ellzaf-agent print-agent-prompt --profile backend
 Use `event(...)` when helper methods do not match your code.
 
 ```python
-ellzaf.event(
+tracker.event(
     "risk.check.completed",
     run_id="run_example",
     symbols=["NVDA"],
@@ -298,7 +298,7 @@ The SDK validates the event before it writes to disk or uploads.
 Use `JsonlSink` for local audits, support bundles, or custom adapters.
 
 ```python
-from ellzaf_agent import JsonlSink
+from agent_tracker import JsonlSink
 
 sink = JsonlSink("ellzaf-events.jsonl")
 sink.write(event)
@@ -309,15 +309,15 @@ The sink redacts, validates, and writes one event per line.
 Generate sample files:
 
 ```bash
-ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
-ellzaf-agent emit-sample --profile reporting --output ellzaf-reporting.jsonl
+agent-tracker emit-sample --profile ebook --output ellzaf-sample.jsonl
+agent-tracker emit-sample --profile reporting --output ellzaf-reporting.jsonl
 ```
 
 Validate any file before you upload or share it:
 
 ```bash
-ellzaf-agent validate-jsonl ellzaf-sample.jsonl
-ellzaf-agent validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
+agent-tracker validate-jsonl ellzaf-sample.jsonl
+agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
 ```
 
 ## Reference-Code Exporter
@@ -326,7 +326,7 @@ Some Ellzaf projects store telemetry-like rows in a Postgres database. Use the
 optional exporter when your repo has those tables or close equivalents:
 
 ```python
-from ellzaf_agent.adapters.aitrade import AitradeExporter
+from agent_tracker.adapters.aitrade import AitradeExporter
 
 exporter = AitradeExporter.from_database_url(database_url)
 summary = exporter.export_jsonl("ellzaf-events.jsonl")
@@ -343,7 +343,7 @@ Ellzaf event types. Most custom agents only need small mapping changes.
 
 ## Privacy And Safety
 
-Ellzaf Agent redacts events before queueing or upload.
+Ellzaf Agent Tracker redacts events before queueing or upload.
 
 Default behavior:
 
@@ -363,7 +363,7 @@ The SDK writes one event per JSONL file under `.ellzaf/queue` by default.
 `flush()` uploads a batch to Ellzaf with gzip and bearer-token authentication.
 
 ```python
-summary = ellzaf.flush()
+summary = tracker.flush()
 
 print(summary.attempted)
 print(summary.accepted)
@@ -388,20 +388,20 @@ You can still create and validate event objects with telemetry disabled.
 Add a test in your agent repo:
 
 ```python
-from ellzaf_agent.testing import assert_valid_ellzaf_events
+from agent_tracker.testing import assert_valid_agent_tracker_events
 
 
-def test_ellzaf_events(events):
-    assert_valid_ellzaf_events(events)
+def test_agent_tracker_events(events):
+    assert_valid_agent_tracker_events(events)
 ```
 
 Use stricter profiles when your repo should support hosted stats, arena scoring,
 or proof pages:
 
 ```python
-assert_valid_ellzaf_events(events, profile="strict-reporting")
-assert_valid_ellzaf_events(events, profile="strict-arena")
-assert_valid_ellzaf_events(events, profile="strict-proof")
+assert_valid_agent_tracker_events(events, profile="strict-reporting")
+assert_valid_agent_tracker_events(events, profile="strict-arena")
+assert_valid_agent_tracker_events(events, profile="strict-proof")
 ```
 
 The helper checks schema rules, UTC timestamps, taxonomy values, privacy flags,
@@ -411,18 +411,18 @@ and required event coverage.
 ## CLI Reference
 
 ```bash
-ellzaf-agent init
-ellzaf-agent doctor-repo --path .
-ellzaf-agent print-agent-prompt --profile ebook
-ellzaf-agent print-agent-prompt --profile review
-ellzaf-agent print-agent-prompt --profile backend
-ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
-ellzaf-agent emit-sample --profile reporting --output ellzaf-reporting.jsonl
-ellzaf-agent validate-jsonl ellzaf-sample.jsonl
-ellzaf-agent validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
-ellzaf-agent reporting-readiness ellzaf-reporting.jsonl
-ellzaf-agent queue-health
-ellzaf-agent flush
+agent-tracker init
+agent-tracker doctor-repo --path .
+agent-tracker print-agent-prompt --profile ebook
+agent-tracker print-agent-prompt --profile review
+agent-tracker print-agent-prompt --profile backend
+agent-tracker emit-sample --profile ebook --output ellzaf-sample.jsonl
+agent-tracker emit-sample --profile reporting --output ellzaf-reporting.jsonl
+agent-tracker validate-jsonl ellzaf-sample.jsonl
+agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
+agent-tracker reporting-readiness ellzaf-reporting.jsonl
+agent-tracker queue-health
+agent-tracker flush
 ```
 
 Only `flush` uses the network. The other commands inspect local files, print

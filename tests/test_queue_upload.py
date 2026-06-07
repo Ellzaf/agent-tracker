@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from ellzaf_agent import Config, Ellzaf
-from ellzaf_agent.errors import QueueError
-from ellzaf_agent.queue import LocalQueue
-from ellzaf_agent.serialization import strict_json_dumps
+from agent_tracker import AgentTracker, Config
+from agent_tracker.errors import QueueError
+from agent_tracker.queue import LocalQueue
+from agent_tracker.serialization import strict_json_dumps
 
 
 def test_queue_quarantines_partial_and_corrupt_rows(tmp_path: Path) -> None:
@@ -28,7 +28,7 @@ def test_queue_quarantines_partial_and_corrupt_rows(tmp_path: Path) -> None:
 def test_queue_paths_remain_unique_when_clock_repeats(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import ellzaf_agent.queue as queue_module
+    import agent_tracker.queue as queue_module
 
     monkeypatch.setattr(queue_module.time, "time_ns", lambda: 123)
     queue = LocalQueue(tmp_path, max_queue_bytes=1_000_000)
@@ -88,7 +88,7 @@ def test_flush_uploads_accepted_batch_and_moves_files(tmp_path: Path) -> None:
         captured["payload"] = json.loads(gzip.decompress(body).decode("utf-8"))
         return 200, b'{"accepted":1,"duplicates":0,"rejected":[]}'
 
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
         transport=transport,
     )
@@ -131,7 +131,7 @@ def test_partial_rejection_marks_permanent_failure(tmp_path: Path) -> None:
         }
         return 200, json.dumps(response).encode("utf-8")
 
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
         transport=transport,
     )
@@ -153,7 +153,7 @@ def test_malformed_success_response_keeps_events_pending(tmp_path: Path) -> None
     ) -> tuple[int, bytes]:
         return 200, b'{"accepted":0,"duplicates":0,"rejected":[]}'
 
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
         transport=transport,
     )
@@ -191,7 +191,7 @@ def test_invalid_success_response_keeps_events_pending(
     ) -> tuple[int, bytes]:
         return 200, response
 
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
         transport=transport,
     )
@@ -215,7 +215,7 @@ def test_duplicate_response_marks_uploaded_without_counting_as_accepted(
     ) -> tuple[int, bytes]:
         return 200, b'{"accepted":0,"duplicates":1,"rejected":[]}'
 
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
         transport=transport,
     )
@@ -239,7 +239,7 @@ def test_server_error_keeps_events_pending_and_returns_retryable_summary(
     ) -> tuple[int, bytes]:
         return 500, b'{"error":"server"}'
 
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
         transport=transport,
     )
@@ -252,7 +252,9 @@ def test_server_error_keeps_events_pending_and_returns_retryable_summary(
 
 
 def test_missing_api_key_skips_upload_but_keeps_local_jsonl(tmp_path: Path) -> None:
-    client = Ellzaf(Config(project="paper-agent", queue_dir=tmp_path, api_key=None))
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key=None)
+    )
     client.event("risk.check.completed", run_id="run_local", payload={"approved": True})
 
     summary = client.flush()

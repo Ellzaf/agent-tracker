@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from ellzaf_agent import Config, Ellzaf
+from agent_tracker import AgentTracker, Config
 
 
 def read_pending(tmp_path: Path) -> list[dict]:
@@ -15,7 +15,9 @@ def read_pending(tmp_path: Path) -> list[dict]:
 
 
 def test_async_run_context_and_aflush(tmp_path: Path) -> None:
-    client = Ellzaf(Config(project="paper-agent", queue_dir=tmp_path, api_key=None))
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key=None)
+    )
 
     async def scenario() -> None:
         async with client.arun(run_type="market_move_triage", symbols=["tsla"]) as run:
@@ -33,7 +35,9 @@ def test_async_run_context_and_aflush(tmp_path: Path) -> None:
 
 
 def test_trace_decorator_records_sync_function(tmp_path: Path) -> None:
-    client = Ellzaf(Config(project="paper-agent", queue_dir=tmp_path, api_key=None))
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key=None)
+    )
 
     @client.trace(run_type="session_homework", symbols=["amd"])
     def build_plan(value: int) -> int:
@@ -46,7 +50,9 @@ def test_trace_decorator_records_sync_function(tmp_path: Path) -> None:
 
 
 def test_trace_decorator_records_async_function(tmp_path: Path) -> None:
-    client = Ellzaf(Config(project="paper-agent", queue_dir=tmp_path, api_key=None))
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key=None)
+    )
 
     @client.trace(run_type="session_homework")
     async def build_plan(value: int) -> int:

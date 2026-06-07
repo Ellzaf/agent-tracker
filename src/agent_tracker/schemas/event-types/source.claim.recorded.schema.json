@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/source.claim.recorded.schema.json",
+  "title": "source.claim.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "source.claim.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["claim_type"],
+          "properties": {
+            "claim_type": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

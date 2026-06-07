@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/agent.run.completed.schema.json",
+  "title": "agent.run.completed",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "agent.run.completed" },
+        "payload": {
+          "type": "object",
+          "required": ["run_type", "status"],
+          "properties": {
+            "run_type": { "type": "string", "minLength": 1 },
+            "status": {
+              "type": "string",
+              "enum": [
+                "succeeded",
+                "failed",
+                "cancelled",
+                "abandoned",
+                "partial",
+                "schema_failed",
+                "postcondition_failed"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from ellzaf_agent import Config, Ellzaf
-from ellzaf_agent.errors import SchemaValidationError
+from agent_tracker import AgentTracker, Config
+from agent_tracker.errors import SchemaValidationError
 
 
-def make_client(tmp_path: Path, *, environment: str = "paper") -> Ellzaf:
-    return Ellzaf(
+def make_client(tmp_path: Path, *, environment: str = "paper") -> AgentTracker:
+    return AgentTracker(
         Config(
             project="paper-agent",
             environment=environment,

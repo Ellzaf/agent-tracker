@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ellzaf_agent import Config, Ellzaf
-from ellzaf_agent.constants import SUPPORTED_ENVIRONMENTS, SUPPORTED_EVENT_TYPES
-from ellzaf_agent.testing import assert_valid_ellzaf_events
+from agent_tracker import AgentTracker, Config
+from agent_tracker.constants import SUPPORTED_ENVIRONMENTS, SUPPORTED_EVENT_TYPES
+from agent_tracker.testing import assert_valid_agent_tracker_events
 
 
 def test_taxonomy_contract_matrix_covers_more_than_1000_edge_cases(
@@ -22,7 +22,7 @@ def test_taxonomy_contract_matrix_covers_more_than_1000_edge_cases(
     scenario_count = 0
 
     for environment in environments:
-        client = Ellzaf(
+        client = AgentTracker(
             Config(
                 project=f"matrix-{environment}",
                 environment=environment,
@@ -63,7 +63,7 @@ def test_taxonomy_contract_matrix_covers_more_than_1000_edge_cases(
                             },
                         )
                         assert event["payload"]["mistake_family"] == family
-                        assert_valid_ellzaf_events([event])
+                        assert_valid_agent_tracker_events([event])
 
     assert scenario_count == (
         len(environments)

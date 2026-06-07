@@ -1,0 +1,32 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_raw_prompt_leak",
+  "idempotency_key": "fixture/raw-prompt-leak",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_raw_prompt_leak",
+  "event_type": "llm.call.started",
+  "occurred_at": "2026-06-07T00:05:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": [],
+  "payload": {
+    "provider": "example",
+    "model": "example-model",
+    "prompt": "raw prompt text should be hashed before export"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "agent-tracker-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

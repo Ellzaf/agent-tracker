@@ -5,8 +5,8 @@ from decimal import Decimal
 from math import inf, nan
 from pathlib import Path
 
-from ellzaf_agent import Config, Ellzaf
-from ellzaf_agent.constants import SUPPORTED_ENVIRONMENTS, SUPPORTED_EVENT_TYPES
+from agent_tracker import AgentTracker, Config
+from agent_tracker.constants import SUPPORTED_ENVIRONMENTS, SUPPORTED_EVENT_TYPES
 
 
 def payload_for(event_type: str, variant: int) -> dict:
@@ -139,7 +139,7 @@ def test_generated_event_matrix_covers_more_than_1000_edge_cases(
                 for store_full_io in privacy_modes:
                     for variant in range(8):
                         scenario_count += 1
-                        client = Ellzaf(
+                        client = AgentTracker(
                             Config(
                                 project=f"paper-agent-{env_index}",
                                 environment=environment,

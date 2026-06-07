@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from ellzaf_agent import Config, Ellzaf
-from ellzaf_agent.errors import SchemaValidationError
-from ellzaf_agent.reporting import assess_reporting_readiness
-from ellzaf_agent.resources import list_resource_names, read_json_resource
-from ellzaf_agent.testing import assert_valid_ellzaf_events
+from agent_tracker import AgentTracker, Config
+from agent_tracker.errors import SchemaValidationError
+from agent_tracker.reporting import assess_reporting_readiness
+from agent_tracker.resources import list_resource_names, read_json_resource
+from agent_tracker.testing import assert_valid_agent_tracker_events
 
 
 def test_reporting_helpers_emit_strict_ready_events(tmp_path: Path) -> None:
-    client = Ellzaf(
+    client = AgentTracker(
         Config(
             project="paper-agent",
             queue_dir=tmp_path,
@@ -154,7 +154,7 @@ def test_reporting_helpers_emit_strict_ready_events(tmp_path: Path) -> None:
             )
         )
 
-    assert_valid_ellzaf_events(events, profile="strict-reporting")
+    assert_valid_agent_tracker_events(events, profile="strict-reporting")
     readiness = assess_reporting_readiness(events)
     assert readiness.strict_reporting_ready is True
     assert readiness.to_dict()["strict_reporting_ready"] is True
@@ -170,7 +170,7 @@ def test_strict_reporting_reports_missing_data() -> None:
     ]
 
     with pytest.raises(AssertionError, match=r"capital\.flow\.recorded"):
-        assert_valid_ellzaf_events(events, profile="strict-reporting")
+        assert_valid_agent_tracker_events(events, profile="strict-reporting")
 
     readiness = assess_reporting_readiness(events)
     assert "event_type:capital.flow.recorded" in readiness.missing_fields
@@ -182,7 +182,7 @@ def test_reporting_fixtures_are_strict_reporting_ready() -> None:
         for name in list_resource_names("schemas", "fixtures", "reporting")
     ]
 
-    assert_valid_ellzaf_events(events, profile="strict-reporting")
+    assert_valid_agent_tracker_events(events, profile="strict-reporting")
     assert assess_reporting_readiness(events).can_publish_proof is True
 
 
@@ -268,7 +268,7 @@ def test_reporting_payload_validation_rejects_bad_values(
     event_type: str,
     payload: dict[str, object],
 ) -> None:
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
     )
 
@@ -279,7 +279,7 @@ def test_reporting_payload_validation_rejects_bad_values(
 def test_reporting_accepts_legitimate_negative_position_and_return_values(
     tmp_path: Path,
 ) -> None:
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
     )
 
@@ -314,7 +314,7 @@ def test_reporting_accepts_legitimate_negative_position_and_return_values(
 
 
 def test_reporting_helpers_redact_sensitive_nested_fields(tmp_path: Path) -> None:
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
     )
 
@@ -332,7 +332,7 @@ def test_reporting_helpers_redact_sensitive_nested_fields(tmp_path: Path) -> Non
 
 
 def test_reporting_helpers_scrub_local_paths(tmp_path: Path) -> None:
-    client = Ellzaf(
+    client = AgentTracker(
         Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
     )
 

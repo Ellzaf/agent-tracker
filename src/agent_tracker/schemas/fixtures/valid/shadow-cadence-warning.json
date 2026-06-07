@@ -1,0 +1,44 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_shadow_cadence_warning",
+  "idempotency_key": "fixture/shadow-cadence-warning",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_shadow_cadence_warning",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "portfolio.snapshot.recorded",
+  "occurred_at": "2026-06-07T00:03:00Z",
+  "received_at": null,
+  "environment": "shadow",
+  "symbols": [],
+  "payload": {
+    "portfolio_kind": "shadow_scorecard",
+    "component": "shadow",
+    "severity": "warning",
+    "mistake_family": "shadow.unfair_cadence",
+    "money_impact": "none",
+    "blocking_status": "non_blocking",
+    "resolution_status": "open",
+    "next_safe_action": "observe",
+    "profile_id": "shadow_a",
+    "champion_run_count": 20,
+    "shadow_run_count": 5,
+    "failed_run_count": 1,
+    "evidence_refs": [{"table": "shadow_profile_scorecards", "id": "shadow_1"}]
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "agent-tracker-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

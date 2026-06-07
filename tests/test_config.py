@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from ellzaf_agent import Config
-from ellzaf_agent.errors import ConfigError
+from agent_tracker import Config
+from agent_tracker.errors import ConfigError
 
 
 def test_config_from_env_uses_safe_defaults(tmp_path: Path) -> None:

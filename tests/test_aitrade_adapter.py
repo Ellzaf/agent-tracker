@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ellzaf_agent.adapters.aitrade import AitradeExporter
-from ellzaf_agent.sink import read_jsonl_events
-from ellzaf_agent.testing import assert_valid_ellzaf_events
+from agent_tracker.adapters.aitrade import AitradeExporter
+from agent_tracker.sink import read_jsonl_events
+from agent_tracker.testing import assert_valid_agent_tracker_events
 
 
 def test_aitrade_exporter_maps_rows_to_valid_stable_events(tmp_path: Path) -> None:
@@ -22,7 +22,7 @@ def test_aitrade_exporter_maps_rows_to_valid_stable_events(tmp_path: Path) -> No
     assert [event["idempotency_key"] for event in first_events] == [
         event["idempotency_key"] for event in second_events
     ]
-    assert_valid_ellzaf_events(first_events)
+    assert_valid_agent_tracker_events(first_events)
 
     families = {
         event["payload"].get("mistake_family")
@@ -43,7 +43,7 @@ def test_aitrade_exporter_maps_rows_to_valid_stable_events(tmp_path: Path) -> No
     exported = read_jsonl_events(output)
 
     assert summary.exported == len(exported)
-    assert_valid_ellzaf_events(exported)
+    assert_valid_agent_tracker_events(exported)
     assert second_summary.exported == summary.exported
 
 
