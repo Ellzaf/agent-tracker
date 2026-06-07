@@ -4,6 +4,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .ellzaf/
+docs/
 build/
 dist/
 *.egg-info/
