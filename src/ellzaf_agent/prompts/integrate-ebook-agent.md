@@ -1,4 +1,4 @@
-# Integrate Ellzaf Agent Into An Ebook-Style Trading Agent
+# Integrate Ellzaf Agent Into A User-Built Trading Agent
 
 You are working inside a user-built AI trading-agent repo. Add Ellzaf Agent
 telemetry without changing trading behavior.

@@ -1,4 +1,4 @@
-# Add Ellzaf Agent To An aitrade_blank-Style Repo
+# Add Ellzaf Agent To An Ellzaf Reference-Code Repo
 
 Use the row-based `AitradeExporter` first. Do not require a live database for
 unit tests.

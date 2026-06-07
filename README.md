@@ -1,23 +1,77 @@
 # Ellzaf Agent
 
-Python SDK and local tooling for sending redacted telemetry from self-built AI
-trading agents to Ellzaf.
+Ellzaf Agent is a Python SDK for AI trading agents.
 
-Use Ellzaf Agent to record:
+Install it in your agent repo, send redacted telemetry to Ellzaf, and use that
+data for engineering diagnostics, trading-agent statistics, replay checks, and
+repair prompts.
 
-- agent runs and completion status
-- prompt versions and model calls
-- tool calls and research sources
-- market snapshots and memory reads
-- proposed decisions and risk checks
-- rejected trades and paper fills
-- order intents, decision outcomes, positions, capital flows, and performance
-- replay results, costs, and errors
+Ellzaf looks at how your agent behaves:
 
-Ellzaf Agent observes your agent. It does not place orders, connect to a broker,
-rank stocks, or produce buy and sell signals.
+- what it read before a decision;
+- which model and prompt version it used;
+- what trade or allocation it wanted to make;
+- which risk gate allowed, changed, or blocked the action;
+- what happened in paper trading, shadow trading, or replay;
+- where the agent drifted, used stale data, missed sources, or broke tests.
+
+Ellzaf Agent does not place broker orders, rank stocks, generate buy or sell
+signals, or replace your risk gates. Your agent remains in control of its own
+logic. Ellzaf observes the system and reports engineering, safety, and data
+quality issues.
+
+## Who This Is For
+
+Use this package if you are building, testing, or maintaining a Python AI
+trading agent.
+
+It can work with most agent designs after you map your existing objects to
+Ellzaf events. Your repo may use OpenAI, Anthropic, LangChain, Agno, a custom
+loop, a Postgres journal, JSON files, notebooks, or plain Python classes. The
+SDK only needs structured facts about the run.
+
+You get the smoothest setup if your agent follows the Ellzaf ebook, uses the
+Ellzaf reference code, or was installed through an Ellzaf setup. Those projects
+already have the same concepts Ellzaf expects: prompts, source checks, market
+snapshots, decisions, risk gates, paper fills, replay tests, and performance
+tracking.
+
+Learn the full system, buy the reference code, or buy a guided setup at
+[ellzaf.com](https://ellzaf.com).
+
+## What You Send
+
+Start small. A useful integration records one run, one model call, one decision,
+one risk check, and one outcome.
+
+Add richer events when you want hosted stats and weekly repair prompts.
+
+| Your Agent Has | Send To Ellzaf |
+| --- | --- |
+| Agent run or workflow | `agent.run.started`, `agent.run.completed` |
+| Prompt version, model, provider | `llm.call.started`, `llm.call.completed` |
+| Search, tools, citations | `tool.call.completed`, `source.claim.recorded` |
+| Market data and freshness | `market.snapshot.recorded` |
+| Memory or context reads | `memory.read.completed` |
+| Proposed allocation or action | `decision.proposed` |
+| Planned order before execution | `order.intent.recorded` |
+| Risk checks and blocked actions | `risk.check.completed`, `trade.rejected` |
+| Paper, shadow, or replay fills | `paper.fill.recorded` |
+| Positions and portfolio state | `position.snapshot.recorded`, `portfolio.snapshot.recorded` |
+| Deposits, withdrawals, fees | `capital.flow.recorded` |
+| P&L, returns, drawdown | `performance.snapshot.recorded` |
+| Replay or regression tests | `replay.result.recorded` |
+| Strategy, setup, market regime | `strategy.context.recorded` |
+| Build, config, risk-gate version | `agent.build.recorded` |
+| Cost and errors | `cost.usage.recorded`, `error.recorded` |
 
 ## Install
+
+Install in the same Python environment as your trading agent:
+
+```bash
+python -m pip install ellzaf-agent
+```
 
 From this repository:
 
@@ -25,13 +79,13 @@ From this repository:
 python -m pip install -e .
 ```
 
-For development:
+For local SDK development:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-For the optional aitrade-style Postgres exporter:
+For the optional exporter used by Ellzaf reference-code databases:
 
 ```bash
 python -m pip install -e ".[aitrade]"
@@ -39,17 +93,24 @@ python -m pip install -e ".[aitrade]"
 
 ## Configure
 
-Set these environment variables before running your agent:
+Create a starter env file:
+
+```bash
+ellzaf-agent init
+```
+
+Then set your project values:
 
 ```bash
 export ELLZAF_PROJECT="my-paper-agent"
 export ELLZAF_API_KEY="your-project-ingestion-key"
+export ELLZAF_ENVIRONMENT="paper"
+export ELLZAF_AGENT_ID="local-agent"
 ```
 
-Optional settings:
+Common optional settings:
 
 ```bash
-export ELLZAF_ENVIRONMENT="paper"
 export ELLZAF_QUEUE_DIR=".ellzaf/queue"
 export ELLZAF_TELEMETRY_ENABLED="true"
 export ELLZAF_STORE_FULL_IO="false"
@@ -63,7 +124,14 @@ Supported environments:
 - `replay`
 - `live_observe`
 
+Keep `ELLZAF_STORE_FULL_IO=false` unless you want to store prompt and model
+output text. The default sends hashes and character counts instead.
+
 ## Quick Start
+
+This example records a decision that the risk gate blocks. Ellzaf can later use
+that trace to explain the block, detect stale inputs, and suggest tests or code
+changes.
 
 ```python
 from ellzaf_agent import Ellzaf
@@ -75,24 +143,23 @@ with ellzaf.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as ru
         family="allocation",
         version="2026-06-07",
         prompt_hash="sha256:...",
-    )
-    run.llm_call(
         provider="openai",
         model="example-model",
-        input_hash="sha256:...",
-        output_hash="sha256:...",
     )
+
     run.market_snapshot(
         source="local_bars",
         freshness_seconds=180,
-        session="regular",
+        session_state="regular",
     )
+
     run.decision_proposed(
         decision_kind="target_weight",
         action="increase",
         symbol="NVDA",
-        target_weight=0.15,
+        target_weight="0.15",
     )
+
     order = run.order_intent(
         order_intent_id="intent_1",
         decision_id="decision_1",
@@ -103,21 +170,113 @@ with ellzaf.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as ru
         open_close_effect="open",
         session_date="2026-06-07",
     )
-    run.risk_check(approved=False, reasons=["max_position_pct"])
+
+    run.risk_check(
+        approved=False,
+        reasons=["max_position_pct"],
+        component="risk_gate",
+        severity="warning",
+        mistake_family="custom.max_position_pct_block",
+        next_safe_action="observe",
+    )
+
     run.decision_outcome(
         decision_id="decision_1",
         outcome_kind="no_order",
         linked_event_ids=[order["event_id"]],
         changed_by_risk_gate=True,
     )
+
     run.final_action(action="no_order", reason="risk_gate_rejected")
 
 ellzaf.flush()
 ```
 
+## Add Trading Stats
+
+Ellzaf needs trade lifecycle and account context to compute useful stats. Add
+these events when your agent has the data.
+
+```python
+with ellzaf.run(run_type="paper_fill", symbols=["NVDA"]) as run:
+    run.paper_fill(
+        fill_id="fill_1",
+        position_id="pos_1",
+        order_intent_id="intent_1",
+        symbol="NVDA",
+        side="sell",
+        open_close_effect="close",
+        quantity="2",
+        price="101.00",
+        fees="0.25",
+        currency="USD",
+        fill_source="paper",
+        session_date="2026-06-07",
+        strategy_id="strat_breakout",
+        setup="gap_hold",
+    )
+
+    run.position_snapshot(
+        portfolio_kind="paper",
+        position_id="pos_1",
+        symbol="NVDA",
+        quantity="0",
+        realized_pnl="9.75",
+    )
+
+    run.performance_snapshot(
+        period_kind="daily",
+        period_start="2026-06-07",
+        period_end="2026-06-07",
+        session_date="2026-06-07",
+        trading_pnl_amount="9.75",
+        net_pnl_amount="9.75",
+        fees="0.25",
+        flow_adjusted_equity_change="9.75",
+        return_base="1000.00",
+        compounded_return_pct="0.98",
+        max_drawdown_pct="1.2",
+    )
+```
+
+Run the readiness check against exported JSONL:
+
+```bash
+ellzaf-agent validate-jsonl ellzaf-events.jsonl --profile strict-reporting
+ellzaf-agent reporting-readiness ellzaf-events.jsonl
+```
+
+The readiness report tells you which dashboards Ellzaf can compute from your
+data and which fields your agent still needs to send.
+
+## Use A Coding Agent To Integrate
+
+This package ships prompts for Codex, Claude Code, and similar coding agents.
+Run the prompt command inside the repo you want to instrument:
+
+```bash
+ellzaf-agent print-agent-prompt --profile ebook
+```
+
+The `ebook` profile is for agents built from Ellzaf lessons, the Ellzaf
+reference code, or a similar local trading-agent architecture. The command name
+stays short so existing automation can keep using it.
+
+For a repo review after integration:
+
+```bash
+ellzaf-agent print-agent-prompt --profile review
+```
+
+For backend ingestion teams:
+
+```bash
+ellzaf-agent print-agent-prompt --profile backend
+```
+
 ## Manual Events
 
-Use `event(...)` when your agent does not fit the helper methods:
+Use `event(...)` when helper methods do not match your code.
 
 ```python
 ellzaf.event(
@@ -132,142 +291,11 @@ ellzaf.event(
 )
 ```
 
-## Mistake Fields
+The SDK validates the event before it writes to disk or uploads.
 
-Add normalized fields when your repo already has the evidence:
+## Local JSONL Export
 
-```python
-run.risk_check(
-    approved=False,
-    reasons=["cash_only_capacity_below_target_notional"],
-    component="risk_gate",
-    severity="critical",
-    mistake_family="portfolio.buying_power_as_cash",
-    money_impact="blocked",
-    blocking_status="trading_blocked",
-    resolution_status="open",
-    next_safe_action="block_artifact",
-    evidence_refs=[{"table": "risk_checks", "id": "risk_123"}],
-)
-```
-
-The SDK validates bundled taxonomy values. Use `custom.<local_family>` for a
-local failure mode that does not fit the built-in taxonomy.
-
-## Run Helpers
-
-Inside `with ellzaf.run(...) as run`, you can call:
-
-- `run.prompt_version(...)`
-- `run.llm_call(...)`
-- `run.tool_call(...)`
-- `run.source_claim(...)`
-- `run.market_snapshot(...)`
-- `run.memory_read(...)`
-- `run.decision_proposed(...)`
-- `run.order_intent(...)`
-- `run.decision_outcome(...)`
-- `run.risk_check(...)`
-- `run.trade_rejected(...)`
-- `run.paper_fill(...)`
-- `run.position_snapshot(...)`
-- `run.portfolio_snapshot(...)`
-- `run.capital_flow(...)`
-- `run.performance_snapshot(...)`
-- `run.replay_result(...)`
-- `run.agent_build(...)`
-- `run.strategy_context(...)`
-- `run.cost_usage(...)`
-- `run.error(...)`
-- `run.final_action(...)`
-
-The SDK supports async context managers:
-
-```python
-async with ellzaf.arun(run_type="research_report", symbols=["AAPL"]) as run:
-    run.source_claim(claim_type="financial_result", symbol="AAPL")
-```
-
-## Decorator
-
-Use `trace(...)` around a function when you want a run per call:
-
-```python
-@ellzaf.trace(run_type="research_report", symbols=["AAPL"])
-def build_report(symbol: str) -> dict:
-    return {"symbol": symbol, "status": "done"}
-```
-
-The decorator records a run start and completion event. If the function raises,
-the SDK records an error event and a failed completion event, then raises the
-original exception.
-
-## Privacy
-
-Ellzaf Agent redacts events before it writes them to disk or uploads them.
-
-Default behavior:
-
-- prompts and model outputs become hashes with character counts
-- API keys, bearer tokens, passwords, and common secret formats become
-  `[REDACTED]`
-- broker payloads and account identifiers become hashes
-- bytes become hash and byte-count metadata
-- non-finite floats become `null`
-
-Set `ELLZAF_STORE_FULL_IO=true` to store prompt and output text. Secret
-redaction runs before queueing and upload.
-
-## Queue And Upload
-
-The SDK writes one event per JSONL file under `.ellzaf/queue` by default.
-`flush()` uploads a batch to Ellzaf with gzip and bearer-token authentication.
-
-If the API key is missing, `flush()` leaves events in the local queue and
-returns a skipped summary. If Ellzaf returns a retryable error, the SDK keeps the
-event pending for a later flush.
-
-```python
-summary = ellzaf.flush()
-
-print(summary.attempted)
-print(summary.accepted)
-print(summary.rejected)
-print(summary.retryable)
-```
-
-## Disable Telemetry
-
-Disable queue writes and uploads with:
-
-```bash
-export ELLZAF_TELEMETRY_ENABLED="false"
-```
-
-You can create local event objects through `ellzaf.event(...)`; the SDK
-validates and returns them without writing queue files.
-
-## CLI
-
-```bash
-ellzaf-agent init
-ellzaf-agent doctor-repo --path .
-ellzaf-agent print-agent-prompt --profile ebook
-ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
-ellzaf-agent validate-jsonl ellzaf-sample.jsonl
-ellzaf-agent emit-sample --profile reporting --output ellzaf-reporting.jsonl
-ellzaf-agent validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
-ellzaf-agent reporting-readiness ellzaf-reporting.jsonl
-ellzaf-agent queue-health
-ellzaf-agent flush
-```
-
-Only `flush` uses the network. The other commands inspect local files, print
-package prompts, or validate JSONL.
-
-## JSONL Export
-
-Use `JsonlSink` for local audits, support bundles, and adapters:
+Use `JsonlSink` for local audits, support bundles, or custom adapters.
 
 ```python
 from ellzaf_agent import JsonlSink
@@ -278,23 +306,24 @@ sink.write(event)
 
 The sink redacts, validates, and writes one event per line.
 
-## Repo Doctor
+Generate sample files:
 
-```python
-from ellzaf_agent.doctor import doctor_repo
-
-report = doctor_repo(".")
-print(report.to_dict())
+```bash
+ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
+ellzaf-agent emit-sample --profile reporting --output ellzaf-reporting.jsonl
 ```
 
-The doctor reads the repo and reports coverage for ebook-style surfaces such as
-sources, prompts, model calls, market data, decisions, risk gates, paper fills,
-PnL, memory, shadow models, replay, cost, redaction, and backups. It does not
-modify code.
+Validate any file before you upload or share it:
 
-## Aitrade-Style Export
+```bash
+ellzaf-agent validate-jsonl ellzaf-sample.jsonl
+ellzaf-agent validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
+```
 
-Use the optional adapter when your repo stores starter-style rows:
+## Reference-Code Exporter
+
+Some Ellzaf projects store telemetry-like rows in a Postgres database. Use the
+optional exporter when your repo has those tables or close equivalents:
 
 ```python
 from ellzaf_agent.adapters.aitrade import AitradeExporter
@@ -303,54 +332,105 @@ exporter = AitradeExporter.from_database_url(database_url)
 summary = exporter.export_jsonl("ellzaf-events.jsonl")
 ```
 
-For tests, pass fixture rows without a database:
+For tests, pass rows without a database:
 
 ```python
 events, summary = AitradeExporter().events_from_rows(rows_by_table)
 ```
 
-## Integration Tests
+If your table names or fields differ, write a thin adapter that emits the same
+Ellzaf event types. Most custom agents only need small mapping changes.
 
-Downstream repos can validate their emitted events with:
+## Privacy And Safety
+
+Ellzaf Agent redacts events before queueing or upload.
+
+Default behavior:
+
+- prompt and model output fields become hashes with character counts;
+- API keys, bearer tokens, passwords, and common secret patterns become
+  `[REDACTED]`;
+- broker payloads and account identifiers become hashes;
+- bytes become hash and byte-count metadata;
+- non-finite numbers such as `NaN` and `Infinity` are rejected or converted to
+  safe JSON values before upload.
+
+The SDK does not call brokers, read broker quotes, or create orders.
+
+## Queue And Upload
+
+The SDK writes one event per JSONL file under `.ellzaf/queue` by default.
+`flush()` uploads a batch to Ellzaf with gzip and bearer-token authentication.
+
+```python
+summary = ellzaf.flush()
+
+print(summary.attempted)
+print(summary.accepted)
+print(summary.rejected)
+print(summary.retryable)
+```
+
+If the API key is missing, `flush()` leaves events in the local queue and
+returns a skipped summary. If Ellzaf returns a retryable error, the SDK keeps
+the event pending for a later flush.
+
+Disable queue writes and uploads:
+
+```bash
+export ELLZAF_TELEMETRY_ENABLED="false"
+```
+
+You can still create and validate event objects with telemetry disabled.
+
+## Test Your Integration
+
+Add a test in your agent repo:
 
 ```python
 from ellzaf_agent.testing import assert_valid_ellzaf_events
+
 
 def test_ellzaf_events(events):
     assert_valid_ellzaf_events(events)
 ```
 
-The helper checks schema rules, UTC timestamps, taxonomy values, privacy flags,
-secret patterns, raw prompt/output leaks, raw broker payloads, raw account IDs,
-and required event coverage when requested.
-
-## Reporting Readiness
-
-Use reporting-grade helpers when you want Ellzaf Agent Basic or Pro dashboards
-to compute trading-style statistics and weekly repair prompts from telemetry:
+Use stricter profiles when your repo should support hosted stats, arena scoring,
+or proof pages:
 
 ```python
-from ellzaf_agent import assess_reporting_readiness
-
-readiness = assess_reporting_readiness(events)
-print(readiness.to_dict())
+assert_valid_ellzaf_events(events, profile="strict-reporting")
+assert_valid_ellzaf_events(events, profile="strict-arena")
+assert_valid_ellzaf_events(events, profile="strict-proof")
 ```
 
-`strict-reporting` requires typed data for trade lifecycle, positions, capital
-flows, performance snapshots, strategy context, prompt/replay drift, and repair
-prompt evidence. Missing fields become data-quality tasks instead of fake
-statistics.
+The helper checks schema rules, UTC timestamps, taxonomy values, privacy flags,
+secret patterns, raw prompt/output leaks, raw broker payloads, raw account IDs,
+and required event coverage.
 
-## Package Contract
+## CLI Reference
 
-The package ships JSON Schemas, taxonomies, valid fixtures, invalid fixtures,
-and coding-agent prompts under `ellzaf_agent/schemas` and
-`ellzaf_agent/prompts`. Backend ingestion services should validate against the
-same schema version and taxonomy.
+```bash
+ellzaf-agent init
+ellzaf-agent doctor-repo --path .
+ellzaf-agent print-agent-prompt --profile ebook
+ellzaf-agent print-agent-prompt --profile review
+ellzaf-agent print-agent-prompt --profile backend
+ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
+ellzaf-agent emit-sample --profile reporting --output ellzaf-reporting.jsonl
+ellzaf-agent validate-jsonl ellzaf-sample.jsonl
+ellzaf-agent validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
+ellzaf-agent reporting-readiness ellzaf-reporting.jsonl
+ellzaf-agent queue-health
+ellzaf-agent flush
+```
+
+Only `flush` uses the network. The other commands inspect local files, print
+package prompts, or validate JSONL.
 
 ## Development
 
-Run the test suite:
+Run the package checks:
 
 ```bash
 python -m pytest
@@ -360,7 +440,17 @@ python -m build
 
 The package has no runtime dependencies outside the Python standard library.
 
-## Learn More
+## Learn With Ellzaf
 
-Buy the Blueprint For AI Trade ebook, reference code, or guided setup at
+Ellzaf teaches the full AI trading-agent build at
 [ellzaf.com](https://ellzaf.com).
+
+You can buy:
+
+- the Blueprint For AI Trade ebook;
+- the reference AI trading-agent code;
+- a guided setup if you want Ellzaf to help you install and configure the
+  system.
+
+Agents built from those materials need fewer integration changes because they
+already follow the telemetry surfaces this SDK expects.
