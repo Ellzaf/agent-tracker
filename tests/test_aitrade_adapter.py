@@ -29,6 +29,10 @@ def test_aitrade_exporter_maps_rows_to_valid_stable_events(tmp_path: Path) -> No
         for event in first_events
         if event["payload"].get("mistake_family")
     }
+    event_types = {event["event_type"] for event in first_events}
+    assert "order.intent.recorded" in event_types
+    assert "performance.snapshot.recorded" in event_types
+    assert "capital.flow.recorded" in event_types
     assert "source.truncated_or_missing_evidence" in families
     assert "portfolio.buying_power_as_cash" in families
     assert "pnl.deposit_as_profit" in families
@@ -149,6 +153,19 @@ def _rows() -> dict[str, list[dict[str, object]]]:
                 "approved": False,
                 "reasons": ["buying power is not cash"],
                 "checked_at": "2026-06-07T00:07:00Z",
+            }
+        ],
+        "order_intents": [
+            {
+                "id": "order_1",
+                "decision_id": "decision_1",
+                "symbol": "MSFT",
+                "side": "buy",
+                "qty": "1",
+                "intended_price": "420.50",
+                "status": "submitted",
+                "session_date": "2026-06-07",
+                "created_at": "2026-06-07T00:07:30Z",
             }
         ],
         "trade_journal": [

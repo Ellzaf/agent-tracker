@@ -65,13 +65,24 @@ def test_taxonomy_contract_matrix_covers_more_than_1000_edge_cases(
                         assert event["payload"]["mistake_family"] == family
                         assert_valid_ellzaf_events([event])
 
-    assert scenario_count == 4096
+    assert scenario_count == (
+        len(environments)
+        * len(SUPPORTED_EVENT_TYPES)
+        * len(components)
+        * len(severities)
+        * len(families)
+    )
 
 
 def _payload_for(event_type: str, scenario: int) -> dict[str, object]:
     payloads: dict[str, dict[str, object]] = {
         "agent.run.started": {"run_type": "matrix"},
         "agent.run.completed": {"run_type": "matrix", "status": "succeeded"},
+        "agent.build.recorded": {
+            "build_id": f"build_{scenario}",
+            "config_hash": "sha256:matrix",
+            "risk_gate_version": "risk-matrix",
+        },
         "llm.call.started": {"provider": "provider", "model": "model"},
         "llm.call.completed": {
             "provider": "provider",
@@ -83,6 +94,19 @@ def _payload_for(event_type: str, scenario: int) -> dict[str, object]:
         "market.snapshot.recorded": {"source": "local_bars"},
         "memory.read.completed": {"memory_kind": "fact", "purpose": "allocation"},
         "decision.proposed": {"decision_kind": "target_weight", "action": "watch"},
+        "order.intent.recorded": {
+            "order_intent_id": f"intent_{scenario}",
+            "decision_id": f"decision_{scenario}",
+            "symbol": "MSFT",
+            "side": "buy",
+            "intended_quantity": "1",
+            "open_close_effect": "open",
+        },
+        "decision.outcome.recorded": {
+            "decision_id": f"decision_{scenario}",
+            "outcome_kind": "no_order",
+            "linked_event_ids": [],
+        },
         "risk.check.completed": {
             "risk_check_kind": "deterministic",
             "approved": False,
@@ -93,7 +117,29 @@ def _payload_for(event_type: str, scenario: int) -> dict[str, object]:
             "reason_code": f"matrix_{scenario}",
         },
         "paper.fill.recorded": {"symbol": "MSFT", "side": "buy"},
+        "position.snapshot.recorded": {
+            "portfolio_kind": "paper",
+            "position_id": f"position_{scenario}",
+            "symbol": "MSFT",
+            "quantity": "1",
+        },
         "portfolio.snapshot.recorded": {"portfolio_kind": "paper"},
+        "capital.flow.recorded": {
+            "capital_flow_id": f"flow_{scenario}",
+            "flow_kind": "deposit",
+            "amount": "100.00",
+            "asset": "USD",
+            "currency": "USD",
+            "session_date": "2026-06-07",
+            "included_in_trading_pnl": False,
+        },
+        "performance.snapshot.recorded": {
+            "period_kind": "daily",
+            "period_start": "2026-06-07",
+            "period_end": "2026-06-07",
+            "session_date": "2026-06-07",
+        },
+        "strategy.context.recorded": {"strategy_id": f"strategy_{scenario}"},
         "replay.result.recorded": {
             "suite_name": "matrix",
             "status": "succeeded",

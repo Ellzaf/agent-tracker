@@ -730,28 +730,72 @@ class AitradeExporter:
         ]
 
     def _order_intent_events(
-        self, table: str, row: Mapping[str, Any], _warnings: list[str]
+        self, table: str, row: Mapping[str, Any], warnings: list[str]
     ) -> list[dict[str, Any]]:
-        status = _text(row.get("status"), "")
-        if status not in {"rejected", "skipped", "cancelled", "failed"}:
+        symbol = _text(row.get("symbol"), "")
+        side = _text(row.get("side"), "").lower()
+        intended_quantity = (
+            row.get("intended_quantity") or row.get("quantity") or row.get("qty")
+        )
+        if not symbol or not side or intended_quantity is None:
+            warnings.append(
+                "order_intents row skipped because symbol, side, or quantity is missing"
+            )
             return []
+        status = _text(row.get("status"), "")
+        order_intent_id = _row_id(row)
+        decision_id = _text(
+            row.get("decision_id") or row.get("allocation_run_id"), order_intent_id
+        )
         reasons = _list(row.get("risk_reasons")) or [
             _text(row.get("status"), "rejected")
         ]
         reason_text = " ".join(str(item) for item in reasons)
-        return [
+        events = [
+            self._event(
+                table,
+                row,
+                "order.intent.recorded",
+                run_id=_run_id("order_intents", row),
+                symbols=[symbol],
+                occurred_at=_time(row, "created_at", "updated_at"),
+                payload={
+                    "order_intent_id": order_intent_id,
+                    "decision_id": decision_id,
+                    "symbol": symbol,
+                    "side": side,
+                    "intended_quantity": _maybe_decimal(intended_quantity),
+                    "intended_price": _maybe_decimal(
+                        row.get("intended_price") or row.get("limit_price")
+                    ),
+                    "currency": _text(row.get("currency"), "USD"),
+                    "open_close_effect": _text(row.get("open_close_effect"), "unknown"),
+                    "strategy_id": _maybe_text(row.get("strategy_id")),
+                    "setup": _maybe_text(row.get("setup")),
+                    "session_date": _maybe_text(row.get("session_date")),
+                    "component": "allocation",
+                    "severity": "info",
+                    "evidence_refs": _refs(table, row),
+                },
+            )
+        ]
+        if status not in {"rejected", "skipped", "cancelled", "failed"}:
+            return events
+        events.append(
             self._event(
                 table,
                 row,
                 "trade.rejected",
                 run_id=_run_id("order_intents", row),
-                symbols=_symbols(row),
+                symbols=[symbol],
                 occurred_at=_time(row, "updated_at", "created_at"),
                 payload={
                     "rejected_by": "order_intent",
                     "reason_code": _slug(reason_text),
-                    "symbol": _text(row.get("symbol"), ""),
-                    "side": _maybe_text(row.get("side")),
+                    "order_intent_id": order_intent_id,
+                    "decision_id": decision_id,
+                    "symbol": symbol,
+                    "side": side,
                     "order_type": _maybe_text(row.get("order_type")),
                     "component": "risk_gate",
                     "severity": "warning",
@@ -763,7 +807,8 @@ class AitradeExporter:
                     **_mistake_for_risk_text(reason_text),
                 },
             )
-        ]
+        )
+        return events
 
     def _trade_journal_events(
         self, table: str, row: Mapping[str, Any], warnings: list[str]
@@ -784,10 +829,21 @@ class AitradeExporter:
                 symbols=[symbol],
                 occurred_at=_time(row, "created_at"),
                 payload={
+                    "fill_id": _row_id(row),
+                    "position_id": _maybe_text(row.get("position_id")),
+                    "order_intent_id": _maybe_text(row.get("order_intent_id")),
                     "symbol": symbol,
-                    "side": side,
+                    "side": side.lower(),
+                    "open_close_effect": _maybe_text(row.get("open_close_effect")),
+                    "quantity": _maybe_decimal(row.get("quantity") or row.get("qty")),
                     "qty": _maybe_decimal(row.get("qty")),
                     "price": _maybe_decimal(row.get("price")),
+                    "fees": _maybe_decimal(row.get("fees")),
+                    "currency": _text(row.get("currency"), "USD"),
+                    "fill_source": "paper",
+                    "session_date": _maybe_text(row.get("session_date")),
+                    "strategy_id": _maybe_text(row.get("strategy_id")),
+                    "setup": _maybe_text(row.get("setup")),
                     "broker_order_hash": hash_text(
                         _text(row.get("broker_order_id"), "")
                     )
@@ -826,13 +882,14 @@ class AitradeExporter:
         ]
 
     def _scorecard_events(
-        self, table: str, row: Mapping[str, Any], _warnings: list[str]
+        self, table: str, row: Mapping[str, Any], warnings: list[str]
     ) -> list[dict[str, Any]]:
         mistake = {}
-        if _decimal(row.get("external_capital_flow")):
+        external_flow = _decimal(row.get("external_capital_flow"))
+        if external_flow:
             mistake = {
                 "mistake_family": "pnl.deposit_as_profit"
-                if _decimal(row.get("external_capital_flow")) > 0
+                if external_flow > 0
                 else "pnl.withdrawal_as_loss",
                 "severity": "info",
                 "money_impact": "none",
@@ -840,7 +897,7 @@ class AitradeExporter:
                 "resolution_status": "resolved",
                 "next_safe_action": "observe",
             }
-        return [
+        events = [
             self._event(
                 table,
                 row,
@@ -865,6 +922,83 @@ class AitradeExporter:
                 },
             )
         ]
+        session_date = _maybe_text(row.get("session_date"))
+        if session_date:
+            events.append(
+                self._event(
+                    table,
+                    row,
+                    "performance.snapshot.recorded",
+                    run_id=_run_id(table, row),
+                    occurred_at=_time(row, "captured_at", "created_at"),
+                    payload={
+                        "period_kind": _text(row.get("period_kind"), "daily"),
+                        "period_start": _text(
+                            row.get("period_start") or session_date, session_date
+                        ),
+                        "period_end": _text(
+                            row.get("period_end") or session_date, session_date
+                        ),
+                        "session_date": session_date,
+                        "raw_equity_change": _maybe_decimal(
+                            row.get("raw_equity_change")
+                        ),
+                        "flow_adjusted_equity_change": _maybe_decimal(
+                            row.get("flow_adjusted_equity_change")
+                            or row.get("trading_pnl_amount")
+                        ),
+                        "trading_pnl_amount": _maybe_decimal(
+                            row.get("trading_pnl_amount")
+                        ),
+                        "trading_pnl_pct": _maybe_decimal(row.get("trading_pnl_pct")),
+                        "net_pnl_amount": _maybe_decimal(row.get("net_pnl_amount")),
+                        "fees": _maybe_decimal(row.get("fees")),
+                        "fees_included": _truthy(row.get("fees_included"))
+                        if row.get("fees_included") is not None
+                        else bool(row.get("fees")),
+                        "return_base": _maybe_decimal(row.get("return_base")),
+                        "compounded_return_pct": _maybe_decimal(
+                            row.get("compounded_return_pct")
+                        ),
+                        "max_drawdown_pct": _maybe_decimal(row.get("max_drawdown_pct")),
+                        "component": "performance",
+                        "severity": "info",
+                        "evidence_refs": _refs(table, row),
+                        **mistake,
+                    },
+                )
+            )
+        else:
+            warnings.append(
+                "portfolio_performance_scorecards row missing session_date; "
+                "reporting performance event skipped"
+            )
+        if external_flow:
+            flow_kind = "deposit" if external_flow > 0 else "withdrawal"
+            if session_date:
+                events.append(
+                    self._event(
+                        table,
+                        row,
+                        "capital.flow.recorded",
+                        run_id=_run_id(table, row),
+                        occurred_at=_time(row, "captured_at", "created_at"),
+                        payload={
+                            "capital_flow_id": f"{_row_id(row)}:{flow_kind}",
+                            "flow_kind": flow_kind,
+                            "amount": _maybe_decimal(abs(external_flow)),
+                            "asset": _text(row.get("currency"), "USD"),
+                            "currency": _text(row.get("currency"), "USD"),
+                            "session_date": session_date,
+                            "included_in_trading_pnl": False,
+                            "component": "performance",
+                            "severity": "info",
+                            "evidence_refs": _refs(table, row),
+                            **mistake,
+                        },
+                    )
+                )
+        return events
 
     def _replay_events(
         self, table: str, row: Mapping[str, Any], _warnings: list[str]
@@ -1083,10 +1217,10 @@ def _table_surface_map() -> dict[str, str]:
         "portfolio_targets": "decision.proposed",
         "portfolio_rebalance_actions": "decision.proposed",
         "risk_checks": "risk.check.completed",
-        "order_intents": "trade.rejected",
+        "order_intents": "order.intent.recorded",
         "trade_journal": "paper.fill.recorded",
         "portfolio_snapshots": "portfolio.snapshot.recorded",
-        "portfolio_performance_scorecards": "portfolio.snapshot.recorded",
+        "portfolio_performance_scorecards": "performance.snapshot.recorded",
         "decision_replay_runs": "replay.result.recorded",
         "harness_eval_runs": "replay.result.recorded",
         "harness_replay_runs": "replay.result.recorded",

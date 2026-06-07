@@ -28,6 +28,11 @@ def payload_for(event_type: str, variant: int) -> dict:
             "run_type": "portfolio_allocation",
             "status": "succeeded",
         },
+        "agent.build.recorded": {
+            "build_id": f"build_{variant}",
+            "config_hash": "sha256:build",
+            "risk_gate_version": "risk-1",
+        },
         "llm.call.started": {
             "provider": "openai",
             "model": "example",
@@ -51,6 +56,20 @@ def payload_for(event_type: str, variant: int) -> dict:
             "action": "increase",
             "symbol": "msft",
         },
+        "order.intent.recorded": {
+            "order_intent_id": f"intent_{variant}",
+            "decision_id": f"decision_{variant}",
+            "symbol": "msft",
+            "side": "buy",
+            "intended_quantity": "1",
+            "intended_price": "100.00",
+            "open_close_effect": "open",
+        },
+        "decision.outcome.recorded": {
+            "decision_id": f"decision_{variant}",
+            "outcome_kind": "filled",
+            "linked_event_ids": [],
+        },
         "risk.check.completed": {
             "approved": variant % 2 == 0,
             "reasons": ["matrix_reject"],
@@ -61,7 +80,32 @@ def payload_for(event_type: str, variant: int) -> dict:
             "symbol": "nvda",
         },
         "paper.fill.recorded": {"symbol": "nvda", "side": "buy"},
+        "position.snapshot.recorded": {
+            "portfolio_kind": "paper",
+            "position_id": f"position_{variant}",
+            "symbol": "nvda",
+            "quantity": "1",
+        },
         "portfolio.snapshot.recorded": {"portfolio_kind": "paper"},
+        "capital.flow.recorded": {
+            "capital_flow_id": f"flow_{variant}",
+            "flow_kind": "deposit",
+            "amount": "100.00",
+            "asset": "USD",
+            "currency": "USD",
+            "session_date": "2026-06-07",
+            "included_in_trading_pnl": False,
+        },
+        "performance.snapshot.recorded": {
+            "period_kind": "daily",
+            "period_start": "2026-06-07",
+            "period_end": "2026-06-07",
+            "session_date": "2026-06-07",
+        },
+        "strategy.context.recorded": {
+            "strategy_id": f"strategy_{variant}",
+            "setup": "matrix",
+        },
         "replay.result.recorded": {
             "suite_name": "matrix",
             "status": "passed",
@@ -121,4 +165,10 @@ def test_generated_event_matrix_covers_more_than_1000_edge_cases(
                         assert event["payload"]["metadata"]["inf"] is None
                         assert event["payload"]["metadata"]["bytes"]["redacted"] is True
 
-    assert scenario_count == 5120
+    assert scenario_count == (
+        len(SUPPORTED_ENVIRONMENTS)
+        * len(SUPPORTED_EVENT_TYPES)
+        * len(symbols_variants)
+        * len(privacy_modes)
+        * 8
+    )

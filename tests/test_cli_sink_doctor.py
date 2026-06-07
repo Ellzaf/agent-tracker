@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import stat
 from pathlib import Path
 
@@ -56,6 +57,22 @@ def test_cli_print_prompt_emit_sample_and_validate(
     path = tmp_path / "sample.jsonl"
     assert main(["emit-sample", "--profile", "ebook", "--output", str(path)]) == 0
     assert main(["validate-jsonl", str(path), "--strict-mistakes"]) == 0
+
+
+def test_cli_emit_reporting_sample_validate_and_show_readiness(
+    tmp_path: Path, capsys: object
+) -> None:
+    path = tmp_path / "reporting.jsonl"
+
+    assert main(["emit-sample", "--profile", "reporting", "--output", str(path)]) == 0
+    assert main(["validate-jsonl", str(path), "--profile", "strict-reporting"]) == 0
+    validated = json.loads(capsys.readouterr().out.splitlines()[-1])  # type: ignore[attr-defined]
+    assert validated["reporting_readiness"]["can_compute_flow_adjusted_pnl"] is True
+
+    assert main(["reporting-readiness", str(path)]) == 0
+    readiness = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert readiness["missing_fields"] == []
+    assert readiness["can_generate_repair_prompts"] is True
 
 
 def test_cli_validate_jsonl_rejects_raw_prompt(tmp_path: Path) -> None:

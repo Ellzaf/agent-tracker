@@ -59,6 +59,7 @@ ellzaf_agent = [
   "schemas/*.json",
   "schemas/event-types/*.json",
   "schemas/fixtures/invalid/*.json",
+  "schemas/fixtures/reporting/*.json",
   "schemas/fixtures/valid/*.json",
   "schemas/taxonomies/*.json",
 ]

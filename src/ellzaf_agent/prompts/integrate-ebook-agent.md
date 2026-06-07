@@ -26,10 +26,23 @@ Map local concepts to these Ellzaf events:
 - market bars, tape, regime, freshness, scope: `market.snapshot.recorded`
 - memory reads, context packs, lifecycle, supersession: `memory.read.completed`
 - target weights, watch/avoid actions, rebalance drafts: `decision.proposed`
+- order intent, planned side, planned quantity, intended price:
+  `order.intent.recorded`
+- decision result, no-order result, fill/reject/defer link:
+  `decision.outcome.recorded`
 - deterministic gates, cash-only checks, concentration, stale data: `risk.check.completed`
 - blocked orders or skipped actions: `trade.rejected`
 - paper or shadow fills: `paper.fill.recorded`
-- account, positions, PnL, scorecards: `portfolio.snapshot.recorded`
+- account and portfolio summary: `portfolio.snapshot.recorded`
+- per-position quantity, value, realized/unrealized PnL:
+  `position.snapshot.recorded`
+- deposits, withdrawals, transfers, fees, adjustments:
+  `capital.flow.recorded`
+- flow-adjusted PnL, return base, drawdown, session date:
+  `performance.snapshot.recorded`
+- strategy, setup, playbook, planned risk, regime context:
+  `strategy.context.recorded`
+- build, prompt/config hash, risk-gate version: `agent.build.recorded`
 - regression, replay, scenario, prompt, or risk-gate tests: `replay.result.recorded`
 - search credits, tokens, provider spend: `cost.usage.recorded`
 - source, market, memory, shadow, orchestration, privacy failures: `error.recorded`
@@ -44,14 +57,19 @@ Implementation steps:
 3. Create one small telemetry module that returns `Ellzaf.from_env()` and has a
    disabled/local mode for tests.
 4. Instrument the smallest stable boundaries first: run start, model call,
-   source claim, market snapshot, decision, risk check, rejected trade, replay,
-   cost, and error.
+   source claim, market snapshot, decision, order intent, risk check, rejected
+   trade, fill, position, performance, replay, cost, and error.
 5. Add `component`, `severity`, `mistake_family`, `money_impact`,
    `blocking_status`, `resolution_status`, `next_safe_action`, `evidence_refs`,
    and `correlation_ids` when the repo already has that evidence.
-6. Add an integration report using `EllzafIntegrationReport` and include tests
+6. Add reporting-grade fields when the repo has them: `decision_id`,
+   `order_intent_id`, `position_id`, `capital_flow_id`, `strategy_id`,
+   `session_date`, `open_close_effect`, `fees`, and flow-adjusted PnL.
+7. Add an integration report using `EllzafIntegrationReport` and include tests
    with `assert_valid_ellzaf_events`.
-7. Run the repo tests plus `ellzaf-agent validate-jsonl` on any exported events.
+8. Run the repo tests plus `ellzaf-agent validate-jsonl` on any exported events.
+9. If the repo should support hosted stats, run
+   `ellzaf-agent validate-jsonl path/to/events.jsonl --profile strict-reporting`.
 
 Use `custom.<local_family>` only when the repo has a real local failure mode
 that does not fit the bundled taxonomy.

@@ -14,6 +14,10 @@ from ellzaf_agent.constants import (
     SUPPORTED_EVENT_TYPES,
 )
 from ellzaf_agent.errors import SchemaValidationError
+from ellzaf_agent.reporting import (
+    REPORTING_REQUIRED_PAYLOAD_FIELDS,
+    validate_reporting_payload,
+)
 from ellzaf_agent.serialization import strict_json_dumps
 from ellzaf_agent.taxonomy import validate_taxonomy_fields
 
@@ -36,6 +40,7 @@ EVENT_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
     "replay.result.recorded": {"suite_name", "status", "case_count"},
     "cost.usage.recorded": {"provider", "usage_kind", "quantity"},
     "error.recorded": {"error_kind", "message"},
+    **REPORTING_REQUIRED_PAYLOAD_FIELDS,
 }
 
 
@@ -158,6 +163,7 @@ def _validate_payload(event_type: str, payload: dict[str, Any]) -> None:
         for field in ("case_count",):
             if not isinstance(payload.get(field), int) or payload[field] < 0:
                 raise SchemaValidationError(f"{field} must be a non-negative integer")
+    validate_reporting_payload(event_type, payload)
 
 
 def _validate_timestamp(value: Any) -> None:

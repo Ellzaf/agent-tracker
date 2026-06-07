@@ -18,6 +18,9 @@ Check:
   `occurred_at`, `symbols`, `payload`, `privacy`, and `sdk`.
 - Mistake fields use the bundled taxonomy or `custom.<local_family>`.
 - Rejected risk checks include reasons.
+- Reporting-grade telemetry links decisions, order intents, fills, positions,
+  capital flows, performance snapshots, strategy context, prompt hashes, and
+  replay results when the repo claims hosted stats support.
 - Source-quality, market freshness, cash-only risk, PnL, memory lifecycle,
   shadow fairness, prompt drift, replay isolation, cost, and privacy failures
   have coverage where the repo has those concepts.
@@ -28,6 +31,7 @@ Run:
 python -m pytest
 ellzaf-agent doctor-repo --path .
 ellzaf-agent validate-jsonl path/to/events.jsonl
+ellzaf-agent reporting-readiness path/to/events.jsonl
 ```
 
 Report file and line references for any issue.

@@ -1,0 +1,44 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_reporting_strategy_context",
+  "idempotency_key": "fixture/reporting/strategy-context",
+  "project": "paper-agent",
+  "agent_id": "local-agent",
+  "run_id": "run_reporting",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "strategy.context.recorded",
+  "occurred_at": "2026-06-07T14:31:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["NVDA"],
+  "payload": {
+    "strategy_id": "strat_breakout_quality",
+    "strategy_name": "Breakout Quality",
+    "setup": "earnings_gap_hold",
+    "playbook": "starter_then_scale",
+    "timeframe": "swing",
+    "planned_risk_amount": "125.00",
+    "planned_risk_pct": "0.50",
+    "planned_reward_risk": "2.50",
+    "market_regime": "risk_on",
+    "volatility_regime": "elevated",
+    "source_confidence": "0.82",
+    "component": "research",
+    "severity": "info"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

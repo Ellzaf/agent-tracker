@@ -1,0 +1,42 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_reporting_decision_outcome",
+  "idempotency_key": "fixture/reporting/decision-outcome",
+  "project": "paper-agent",
+  "agent_id": "local-agent",
+  "run_id": "run_reporting",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "decision.outcome.recorded",
+  "occurred_at": "2026-06-07T14:40:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["NVDA"],
+  "payload": {
+    "decision_id": "decision_exit_1",
+    "outcome_kind": "filled",
+    "outcome_reason": "paper_fill_recorded",
+    "linked_event_ids": ["evt_reporting_order_intent", "evt_reporting_paper_fill_close"],
+    "latency_to_outcome_seconds": 420,
+    "followed_plan": true,
+    "changed_by_risk_gate": false,
+    "changed_by_operator": false,
+    "symbol": "NVDA",
+    "component": "allocation",
+    "severity": "info"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_reporting_risk_check",
+  "idempotency_key": "fixture/reporting/risk-check",
+  "project": "paper-agent",
+  "agent_id": "local-agent",
+  "run_id": "run_reporting",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "risk.check.completed",
+  "occurred_at": "2026-06-07T14:34:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["NVDA"],
+  "payload": {
+    "risk_check_kind": "deterministic",
+    "risk_check_id": "risk_exit_1",
+    "order_intent_id": "order_intent_exit_1",
+    "approved": false,
+    "reasons": ["open_session_stale_bars"],
+    "planned_notional": "202.00",
+    "cash_available": "1000.00",
+    "risk_gate_version": "risk-2026-06-07",
+    "component": "market_data",
+    "severity": "warning",
+    "mistake_family": "market.open_session_stale_bars",
+    "money_impact": "blocked",
+    "blocking_status": "trading_blocked",
+    "resolution_status": "open",
+    "next_safe_action": "block_artifact",
+    "evidence_refs": [{"table": "market_snapshots", "id": "snap_1"}]
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

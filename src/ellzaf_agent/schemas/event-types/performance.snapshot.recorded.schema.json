@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/performance.snapshot.recorded.schema.json",
+  "title": "performance.snapshot.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "performance.snapshot.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["period_kind", "period_start", "period_end", "session_date"],
+          "properties": {
+            "period_kind": { "type": "string", "minLength": 1 },
+            "period_start": { "type": "string", "format": "date" },
+            "period_end": { "type": "string", "format": "date" },
+            "session_date": { "type": "string", "format": "date" },
+            "raw_equity_change": { "type": ["number", "string", "null"] },
+            "flow_adjusted_equity_change": {
+              "type": ["number", "string", "null"]
+            },
+            "trading_pnl_amount": { "type": ["number", "string", "null"] },
+            "trading_pnl_pct": { "type": ["number", "string", "null"] },
+            "net_pnl_amount": { "type": ["number", "string", "null"] },
+            "fees": { "type": ["number", "string", "null"] },
+            "fees_included": { "type": ["boolean", "null"] },
+            "return_base": { "type": ["number", "string", "null"] },
+            "compounded_return_pct": { "type": ["number", "string", "null"] },
+            "max_drawdown_pct": { "type": ["number", "string", "null"] }
+          }
+        }
+      }
+    }
+  ]
+}

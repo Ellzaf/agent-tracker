@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/strategy.context.recorded.schema.json",
+  "title": "strategy.context.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "strategy.context.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["strategy_id"],
+          "properties": {
+            "strategy_id": { "type": "string", "minLength": 1 },
+            "strategy_name": { "type": ["string", "null"] },
+            "setup": { "type": ["string", "null"] },
+            "playbook": { "type": ["string", "null"] },
+            "timeframe": { "type": ["string", "null"] },
+            "entry_class": { "type": ["string", "null"] },
+            "exit_class": { "type": ["string", "null"] },
+            "planned_holding_period": { "type": ["string", "null"] },
+            "planned_risk_amount": { "type": ["number", "string", "null"] },
+            "planned_risk_pct": { "type": ["number", "string", "null"] },
+            "planned_reward_risk": { "type": ["number", "string", "null"] },
+            "market_regime": { "type": ["string", "null"] },
+            "volatility_regime": { "type": ["string", "null"] },
+            "source_confidence": { "type": ["number", "string", "null"] }
+          }
+        }
+      }
+    }
+  ]
+}

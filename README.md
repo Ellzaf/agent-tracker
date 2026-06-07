@@ -11,6 +11,7 @@ Use Ellzaf Agent to record:
 - market snapshots and memory reads
 - proposed decisions and risk checks
 - rejected trades and paper fills
+- order intents, decision outcomes, positions, capital flows, and performance
 - replay results, costs, and errors
 
 Ellzaf Agent observes your agent. It does not place orders, connect to a broker,
@@ -92,7 +93,23 @@ with ellzaf.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as ru
         symbol="NVDA",
         target_weight=0.15,
     )
+    order = run.order_intent(
+        order_intent_id="intent_1",
+        decision_id="decision_1",
+        symbol="NVDA",
+        side="buy",
+        intended_quantity="2",
+        intended_price="100.00",
+        open_close_effect="open",
+        session_date="2026-06-07",
+    )
     run.risk_check(approved=False, reasons=["max_position_pct"])
+    run.decision_outcome(
+        decision_id="decision_1",
+        outcome_kind="no_order",
+        linked_event_ids=[order["event_id"]],
+        changed_by_risk_gate=True,
+    )
     run.final_action(action="no_order", reason="risk_gate_rejected")
 
 ellzaf.flush()
@@ -148,11 +165,18 @@ Inside `with ellzaf.run(...) as run`, you can call:
 - `run.market_snapshot(...)`
 - `run.memory_read(...)`
 - `run.decision_proposed(...)`
+- `run.order_intent(...)`
+- `run.decision_outcome(...)`
 - `run.risk_check(...)`
 - `run.trade_rejected(...)`
 - `run.paper_fill(...)`
+- `run.position_snapshot(...)`
 - `run.portfolio_snapshot(...)`
+- `run.capital_flow(...)`
+- `run.performance_snapshot(...)`
 - `run.replay_result(...)`
+- `run.agent_build(...)`
+- `run.strategy_context(...)`
 - `run.cost_usage(...)`
 - `run.error(...)`
 - `run.final_action(...)`
@@ -231,6 +255,9 @@ ellzaf-agent doctor-repo --path .
 ellzaf-agent print-agent-prompt --profile ebook
 ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
 ellzaf-agent validate-jsonl ellzaf-sample.jsonl
+ellzaf-agent emit-sample --profile reporting --output ellzaf-reporting.jsonl
+ellzaf-agent validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
+ellzaf-agent reporting-readiness ellzaf-reporting.jsonl
 ellzaf-agent queue-health
 ellzaf-agent flush
 ```
@@ -296,6 +323,23 @@ def test_ellzaf_events(events):
 The helper checks schema rules, UTC timestamps, taxonomy values, privacy flags,
 secret patterns, raw prompt/output leaks, raw broker payloads, raw account IDs,
 and required event coverage when requested.
+
+## Reporting Readiness
+
+Use reporting-grade helpers when you want Ellzaf Agent Basic or Pro dashboards
+to compute trading-style statistics and weekly repair prompts from telemetry:
+
+```python
+from ellzaf_agent import assess_reporting_readiness
+
+readiness = assess_reporting_readiness(events)
+print(readiness.to_dict())
+```
+
+`strict-reporting` requires typed data for trade lifecycle, positions, capital
+flows, performance snapshots, strategy context, prompt/replay drift, and repair
+prompt evidence. Missing fields become data-quality tasks instead of fake
+statistics.
 
 ## Package Contract
 

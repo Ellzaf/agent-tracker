@@ -15,6 +15,7 @@ from ellzaf_agent.integration import (
     SourceRef,
     emit_integration_report,
 )
+from ellzaf_agent.reporting import ReportingReadiness, assess_reporting_readiness
 from ellzaf_agent.sink import JsonlSink
 
 __all__ = [
@@ -26,10 +27,12 @@ __all__ = [
     "JsonlSink",
     "QueueError",
     "RedactionError",
+    "ReportingReadiness",
     "Run",
     "SchemaValidationError",
     "SourceRef",
     "UploadError",
+    "assess_reporting_readiness",
     "emit_integration_report",
 ]
 

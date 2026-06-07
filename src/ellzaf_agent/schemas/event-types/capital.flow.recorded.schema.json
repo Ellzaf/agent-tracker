@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/capital.flow.recorded.schema.json",
+  "title": "capital.flow.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "capital.flow.recorded" },
+        "payload": {
+          "type": "object",
+          "required": [
+            "capital_flow_id",
+            "flow_kind",
+            "amount",
+            "asset",
+            "currency",
+            "session_date",
+            "included_in_trading_pnl"
+          ],
+          "properties": {
+            "capital_flow_id": { "type": "string", "minLength": 1 },
+            "flow_kind": {
+              "enum": [
+                "deposit",
+                "withdrawal",
+                "transfer_in",
+                "transfer_out",
+                "conversion",
+                "fee",
+                "dividend",
+                "interest",
+                "tax",
+                "adjustment"
+              ]
+            },
+            "amount": { "type": ["number", "string"] },
+            "asset": { "type": "string", "minLength": 1 },
+            "currency": { "type": "string", "minLength": 1 },
+            "session_date": { "type": "string", "format": "date" },
+            "included_in_trading_pnl": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  ]
+}

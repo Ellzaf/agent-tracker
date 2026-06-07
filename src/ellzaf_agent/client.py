@@ -269,6 +269,7 @@ class Run:
         symbols: list[str] | tuple[str, ...] | None = None,
         span_id: str | None = None,
         parent_span_id: str | None = None,
+        occurred_at: str | None = None,
     ) -> dict[str, Any]:
         return self.client.event(
             event_type,
@@ -277,6 +278,7 @@ class Run:
             payload=payload,
             span_id=span_id or self.span_id,
             parent_span_id=parent_span_id,
+            occurred_at=occurred_at,
             store_full_io=self.store_full_io,
         )
 
@@ -370,6 +372,60 @@ class Run:
             symbols=[payload["symbol"]] if "symbol" in payload else self.symbols,
         )
 
+    def order_intent(
+        self,
+        *,
+        order_intent_id: str,
+        decision_id: str,
+        symbol: str,
+        side: str,
+        intended_quantity: Any,
+        intended_price: Any | None = None,
+        currency: str | None = "USD",
+        open_close_effect: str | None = "unknown",
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "order.intent.recorded",
+            payload=_compact(
+                {
+                    "order_intent_id": order_intent_id,
+                    "decision_id": decision_id,
+                    "symbol": symbol,
+                    "side": side,
+                    "intended_quantity": intended_quantity,
+                    "intended_price": intended_price,
+                    "currency": currency,
+                    "open_close_effect": open_close_effect,
+                    **payload,
+                }
+            ),
+            symbols=[symbol],
+        )
+
+    def decision_outcome(
+        self,
+        *,
+        decision_id: str,
+        outcome_kind: str,
+        outcome_reason: str | None = None,
+        linked_event_ids: list[str] | tuple[str, ...] | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "decision.outcome.recorded",
+            payload=_compact(
+                {
+                    "decision_id": decision_id,
+                    "outcome_kind": outcome_kind,
+                    "outcome_reason": outcome_reason,
+                    "linked_event_ids": list(linked_event_ids or []),
+                    **payload,
+                }
+            ),
+            symbols=[payload["symbol"]] if "symbol" in payload else self.symbols,
+        )
+
     def risk_check(
         self, *, risk_check_kind: str = "deterministic", approved: bool, **payload: Any
     ) -> dict[str, Any]:
@@ -391,10 +447,44 @@ class Run:
             symbols=[payload["symbol"]] if "symbol" in payload else self.symbols,
         )
 
-    def paper_fill(self, *, symbol: str, side: str, **payload: Any) -> dict[str, Any]:
+    def paper_fill(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        fill_id: str | None = None,
+        position_id: str | None = None,
+        order_intent_id: str | None = None,
+        open_close_effect: str | None = None,
+        quantity: Any | None = None,
+        price: Any | None = None,
+        fees: Any | None = None,
+        currency: str | None = None,
+        fill_source: str | None = None,
+        session_date: str | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        if quantity is None and "qty" in payload:
+            quantity = payload["qty"]
         return self.event(
             "paper.fill.recorded",
-            payload={"symbol": symbol, "side": side, **payload},
+            payload=_compact(
+                {
+                    "symbol": symbol,
+                    "side": side,
+                    "fill_id": fill_id,
+                    "position_id": position_id,
+                    "order_intent_id": order_intent_id,
+                    "open_close_effect": open_close_effect,
+                    "quantity": quantity,
+                    "price": price,
+                    "fees": fees,
+                    "currency": currency,
+                    "fill_source": fill_source,
+                    "session_date": session_date,
+                    **payload,
+                }
+            ),
             symbols=[symbol],
         )
 
@@ -404,6 +494,73 @@ class Run:
         return self.event(
             "portfolio.snapshot.recorded",
             payload={"portfolio_kind": portfolio_kind, **payload},
+        )
+
+    def position_snapshot(
+        self,
+        *,
+        portfolio_kind: str,
+        position_id: str,
+        symbol: str,
+        quantity: Any,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "position.snapshot.recorded",
+            payload={
+                "portfolio_kind": portfolio_kind,
+                "position_id": position_id,
+                "symbol": symbol,
+                "quantity": quantity,
+                **payload,
+            },
+            symbols=[symbol],
+        )
+
+    def capital_flow(
+        self,
+        *,
+        capital_flow_id: str,
+        flow_kind: str,
+        amount: Any,
+        asset: str,
+        currency: str,
+        session_date: str,
+        included_in_trading_pnl: bool = False,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "capital.flow.recorded",
+            payload={
+                "capital_flow_id": capital_flow_id,
+                "flow_kind": flow_kind,
+                "amount": amount,
+                "asset": asset,
+                "currency": currency,
+                "session_date": session_date,
+                "included_in_trading_pnl": included_in_trading_pnl,
+                **payload,
+            },
+        )
+
+    def performance_snapshot(
+        self,
+        *,
+        period_kind: str,
+        period_start: str,
+        period_end: str,
+        session_date: str,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "performance.snapshot.recorded",
+            payload={
+                "period_kind": period_kind,
+                "period_start": period_start,
+                "period_end": period_end,
+                "session_date": session_date,
+                **payload,
+            },
         )
 
     def replay_result(
@@ -417,6 +574,46 @@ class Run:
                 "case_count": case_count,
                 **payload,
             },
+        )
+
+    def agent_build(
+        self,
+        *,
+        build_id: str,
+        config_hash: str,
+        risk_gate_version: str,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "agent.build.recorded",
+            payload={
+                "build_id": build_id,
+                "config_hash": config_hash,
+                "risk_gate_version": risk_gate_version,
+                **payload,
+            },
+        )
+
+    def strategy_context(
+        self,
+        *,
+        strategy_id: str,
+        strategy_name: str | None = None,
+        setup: str | None = None,
+        symbols: list[str] | tuple[str, ...] | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "strategy.context.recorded",
+            payload=_compact(
+                {
+                    "strategy_id": strategy_id,
+                    "strategy_name": strategy_name,
+                    "setup": setup,
+                    **payload,
+                }
+            ),
+            symbols=symbols or self.symbols,
         )
 
     def cost_usage(
@@ -456,3 +653,7 @@ def _payload_with_defaults(
     if event_type == "tool.call.completed":
         result.setdefault("status", "succeeded")
     return result
+
+
+def _compact(payload: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if value is not None}

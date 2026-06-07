@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/order.intent.recorded.schema.json",
+  "title": "order.intent.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "order.intent.recorded" },
+        "payload": {
+          "type": "object",
+          "required": [
+            "order_intent_id",
+            "decision_id",
+            "symbol",
+            "side",
+            "intended_quantity"
+          ],
+          "properties": {
+            "order_intent_id": { "type": "string", "minLength": 1 },
+            "decision_id": { "type": "string", "minLength": 1 },
+            "symbol": { "type": "string", "minLength": 1 },
+            "side": { "enum": ["buy", "sell", "short", "cover"] },
+            "intended_quantity": { "type": ["number", "string"] },
+            "intended_price": { "type": ["number", "string", "null"] },
+            "currency": { "type": ["string", "null"] },
+            "open_close_effect": {
+              "enum": ["open", "increase", "reduce", "close", "unknown", null]
+            },
+            "strategy_id": { "type": "string" },
+            "setup": { "type": "string" },
+            "session_date": { "type": "string", "format": "date" }
+          }
+        }
+      }
+    }
+  ]
+}

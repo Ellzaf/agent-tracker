@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/position.snapshot.recorded.schema.json",
+  "title": "position.snapshot.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "position.snapshot.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["portfolio_kind", "position_id", "symbol", "quantity"],
+          "properties": {
+            "portfolio_kind": { "type": "string", "minLength": 1 },
+            "position_id": { "type": "string", "minLength": 1 },
+            "symbol": { "type": "string", "minLength": 1 },
+            "quantity": { "type": ["number", "string"] },
+            "average_price": { "type": ["number", "string", "null"] },
+            "market_price": { "type": ["number", "string", "null"] },
+            "market_value": { "type": ["number", "string", "null"] },
+            "cost_basis": { "type": ["number", "string", "null"] },
+            "unrealized_pnl": { "type": ["number", "string", "null"] },
+            "realized_pnl": { "type": ["number", "string", "null"] },
+            "opened_at": { "type": ["string", "null"], "format": "date-time" },
+            "holding_period_seconds": { "type": ["integer", "null"], "minimum": 0 },
+            "strategy_id": { "type": "string" },
+            "setup": { "type": "string" }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@ from ellzaf_agent.redaction import (
     PROMPT_TEXT_KEYS,
     SECRET_PATTERNS,
 )
+from ellzaf_agent.reporting import assess_reporting_readiness
 from ellzaf_agent.schema import validate_event
 
 _EBOOK_REQUIRED_EVENT_TYPES = {
@@ -45,6 +46,7 @@ def assert_valid_ellzaf_events(
     allow_full_io: bool = False,
     require_mistake_family_for_mistakes: bool = False,
 ) -> None:
+    normalized_profile = _normalize_profile(profile)
     event_list = list(events)
     if not event_list:
         raise AssertionError("expected at least one Ellzaf event")
@@ -61,13 +63,36 @@ def assert_valid_ellzaf_events(
             _assert_structured_mistake(event, index=index)
 
     required = set(required_event_types or set())
-    if profile in {"ebook", "aitrade"} and required_event_types is None:
+    if normalized_profile in {"ebook", "aitrade"} and required_event_types is None:
         required = set(_EBOOK_REQUIRED_EVENT_TYPES)
     missing = sorted(required - seen_event_types)
     if missing:
         raise AssertionError(
             f"missing required Ellzaf event types: {', '.join(missing)}"
         )
+    if normalized_profile == "strict-reporting":
+        _assert_reporting_ready(event_list)
+    if normalized_profile == "strict-arena":
+        _assert_reporting_ready(event_list)
+        readiness = assess_reporting_readiness(event_list)
+        if not readiness.can_score_arena:
+            raise AssertionError("events are missing arena scoring metadata")
+    if normalized_profile == "strict-proof":
+        _assert_reporting_ready(event_list)
+        readiness = assess_reporting_readiness(event_list)
+        if not readiness.can_publish_proof:
+            raise AssertionError("events are missing proof-page metadata")
+
+
+def _normalize_profile(profile: str | None) -> str | None:
+    return profile.replace("_", "-") if profile else None
+
+
+def _assert_reporting_ready(events: list[Mapping[str, Any]]) -> None:
+    readiness = assess_reporting_readiness(events)
+    if not readiness.strict_reporting_ready:
+        missing = ", ".join(readiness.missing_fields)
+        raise AssertionError(f"events are missing reporting data: {missing}")
 
 
 def _assert_private(

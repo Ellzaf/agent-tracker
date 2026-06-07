@@ -1,0 +1,47 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_reporting_performance_snapshot",
+  "idempotency_key": "fixture/reporting/performance-snapshot",
+  "project": "paper-agent",
+  "agent_id": "local-agent",
+  "run_id": "run_reporting",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "performance.snapshot.recorded",
+  "occurred_at": "2026-06-07T14:38:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": [],
+  "payload": {
+    "period_kind": "daily",
+    "period_start": "2026-06-07",
+    "period_end": "2026-06-07",
+    "session_date": "2026-06-07",
+    "raw_equity_change": "1009.75",
+    "flow_adjusted_equity_change": "9.75",
+    "trading_pnl_amount": "9.75",
+    "trading_pnl_pct": "0.98",
+    "net_pnl_amount": "9.75",
+    "fees": "0.25",
+    "fees_included": true,
+    "return_base": "1000.00",
+    "compounded_return_pct": "0.98",
+    "max_drawdown_pct": "1.20",
+    "component": "performance",
+    "severity": "info"
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

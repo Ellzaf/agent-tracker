@@ -62,6 +62,18 @@ def test_valid_fixtures_pass_runtime_and_privacy_validation() -> None:
     )
 
 
+def test_reporting_fixtures_pass_strict_reporting_profile() -> None:
+    fixtures = [
+        read_json_resource("schemas", "fixtures", "reporting", name)
+        for name in list_resource_names("schemas", "fixtures", "reporting")
+    ]
+
+    assert len(fixtures) >= 10
+    for event in fixtures:
+        validate_event(event, max_event_bytes=DEFAULT_MAX_EVENT_BYTES)
+    assert_valid_ellzaf_events(fixtures, profile="strict-reporting")
+
+
 @pytest.mark.parametrize(
     "name",
     list_resource_names("schemas", "fixtures", "invalid"),
@@ -105,6 +117,8 @@ def test_json_schemas_validate_with_jsonschema_when_available() -> None:
         )
     for name in list_resource_names("schemas", "fixtures", "valid"):
         validator.validate(read_json_resource("schemas", "fixtures", "valid", name))
+    for name in list_resource_names("schemas", "fixtures", "reporting"):
+        validator.validate(read_json_resource("schemas", "fixtures", "reporting", name))
 
     valid_event = read_json_resource(
         "schemas", "fixtures", "valid", "cash-only-risk-block.json"

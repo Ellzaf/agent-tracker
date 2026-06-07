@@ -14,6 +14,7 @@ from ellzaf_agent.constants import DEFAULT_MAX_QUEUE_BYTES, DEFAULT_QUEUE_DIR
 from ellzaf_agent.doctor import doctor_repo, format_doctor_report
 from ellzaf_agent.errors import EllzafError
 from ellzaf_agent.queue import LocalQueue
+from ellzaf_agent.reporting import assess_reporting_readiness
 from ellzaf_agent.resources import (
     list_resource_names,
     read_json_resource,
@@ -28,6 +29,14 @@ _PROMPT_PROFILES = {
     "aitrade": "add-aitrade-adapter.md",
     "review": "review-ellzaf-integration.md",
     "backend": "backend-contract-check.md",
+}
+_VALIDATION_PROFILES = {
+    "ebook",
+    "aitrade",
+    "strict-base",
+    "strict-reporting",
+    "strict-arena",
+    "strict-proof",
 }
 
 
@@ -52,10 +61,17 @@ def _parser() -> argparse.ArgumentParser:
 
     validate = subparsers.add_parser("validate-jsonl", help="validate a JSONL export")
     validate.add_argument("path")
-    validate.add_argument("--profile", choices=["ebook", "aitrade"])
+    validate.add_argument("--profile", choices=sorted(_VALIDATION_PROFILES))
     validate.add_argument("--allow-full-io", action="store_true")
     validate.add_argument("--strict-mistakes", action="store_true")
     validate.set_defaults(func=_cmd_validate_jsonl)
+
+    readiness = subparsers.add_parser(
+        "reporting-readiness", help="show reporting data-quality readiness"
+    )
+    readiness.add_argument("path")
+    readiness.add_argument("--allow-full-io", action="store_true")
+    readiness.set_defaults(func=_cmd_reporting_readiness)
 
     queue = subparsers.add_parser("queue-health", help="show local queue health")
     queue.add_argument("--queue-dir", default=DEFAULT_QUEUE_DIR)
@@ -69,7 +85,7 @@ def _parser() -> argparse.ArgumentParser:
     flush.set_defaults(func=_cmd_flush)
 
     sample = subparsers.add_parser("emit-sample", help="emit bundled sample events")
-    sample.add_argument("--profile", choices=["ebook"], default="ebook")
+    sample.add_argument("--profile", choices=["ebook", "reporting"], default="ebook")
     sample.add_argument("--output", default="-")
     sample.set_defaults(func=_cmd_emit_sample)
 
@@ -126,7 +142,17 @@ def _cmd_validate_jsonl(args: argparse.Namespace) -> int:
         allow_full_io=args.allow_full_io,
         require_mistake_family_for_mistakes=args.strict_mistakes,
     )
-    print(strict_json_dumps({"valid": True, "event_count": len(events)}))
+    result: dict[str, Any] = {"valid": True, "event_count": len(events)}
+    if args.profile in {"strict-reporting", "strict-arena", "strict-proof"}:
+        result["reporting_readiness"] = assess_reporting_readiness(events).to_dict()
+    print(strict_json_dumps(result))
+    return 0
+
+
+def _cmd_reporting_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_ellzaf_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_reporting_readiness(events).to_dict()))
     return 0
 
 
@@ -147,9 +173,12 @@ def _cmd_flush(args: argparse.Namespace) -> int:
 
 
 def _cmd_emit_sample(args: argparse.Namespace) -> int:
+    fixture_parts = ("schemas", "fixtures", "valid")
+    if args.profile == "reporting":
+        fixture_parts = ("schemas", "fixtures", "reporting")
     fixtures = [
-        read_json_resource("schemas", "fixtures", "valid", name)
-        for name in list_resource_names("schemas", "fixtures", "valid")
+        read_json_resource(*fixture_parts, name)
+        for name in list_resource_names(*fixture_parts)
     ]
     if args.output == "-":
         for event in fixtures:
