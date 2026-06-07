@@ -14,6 +14,7 @@ from ellzaf_agent.constants import (
 )
 from ellzaf_agent.errors import SchemaValidationError
 from ellzaf_agent.serialization import strict_json_dumps
+from ellzaf_agent.taxonomy import validate_taxonomy_fields
 
 EVENT_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
     "agent.run.started": {"run_type"},
@@ -102,6 +103,7 @@ def validate_event(event: Mapping[str, Any], *, max_event_bytes: int) -> None:
     if not isinstance(payload, dict):
         raise SchemaValidationError("payload must be an object")
     _validate_payload(event_type, payload)
+    validate_taxonomy_fields(payload)
 
     if not isinstance(event["privacy"], dict):
         raise SchemaValidationError("privacy must be an object")

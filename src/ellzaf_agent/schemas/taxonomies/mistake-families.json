@@ -1,0 +1,185 @@
+{
+  "version": "2026-06-07",
+  "custom_prefix": "custom.",
+  "families": [
+    {
+      "category": "state",
+      "values": [
+        "state.manual_checklist_dependency",
+        "state.report_as_source_of_truth",
+        "state.fixed_research_schedule",
+        "state.initial_backfill_starvation",
+        "state.stale_worker_config"
+      ]
+    },
+    {
+      "category": "source",
+      "values": [
+        "source.unbounded_web_use",
+        "source.wrong_provider",
+        "source.ambiguous_ticker_query",
+        "source.truncated_or_missing_evidence",
+        "source.search_without_expected_extract",
+        "source.repair_loop",
+        "source.clean_report_supersedes_old_bad_report",
+        "source.direct_scraper_brittle"
+      ]
+    },
+    {
+      "category": "market",
+      "values": [
+        "market.closed_session_misread_as_stale",
+        "market.open_session_stale_bars",
+        "market.no_bar_sparse_symbol",
+        "market.future_or_wrong_timezone_bar",
+        "market.partial_tape_as_truth",
+        "market.old_partial_tape_in_memory",
+        "market.sector_taxonomy_drift",
+        "market.leader_laggard_missing"
+      ]
+    },
+    {
+      "category": "homework",
+      "values": [
+        "homework.missed_leader_buried",
+        "homework.ta_score_ignored",
+        "homework.pressure_not_created"
+      ]
+    },
+    {
+      "category": "entry",
+      "values": [
+        "entry.near_miss_not_reconsidered",
+        "entry.chase_class_wrong",
+        "entry.starter_becomes_full_size"
+      ]
+    },
+    {
+      "category": "portfolio",
+      "values": [
+        "portfolio.watch_as_buy",
+        "portfolio.model_as_risk_engine",
+        "portfolio.buying_power_as_cash",
+        "portfolio.rounding_after_cash_check",
+        "portfolio.legacy_fractional_stranded",
+        "portfolio.concentration_as_aggression",
+        "portfolio.regime_budget_ignored",
+        "portfolio.broker_restriction_late",
+        "portfolio.ambiguous_broker_submission",
+        "portfolio.manual_fill_not_adopted",
+        "portfolio.paper_history_leaks_live"
+      ]
+    },
+    {
+      "category": "pnl",
+      "values": [
+        "pnl.deposit_as_profit",
+        "pnl.withdrawal_as_loss",
+        "pnl.transferred_asset_drift_as_trading",
+        "pnl.same_day_flow_denominator_wrong",
+        "pnl.wrong_session_date",
+        "pnl.current_period_fallback_wrong",
+        "pnl.percent_added_not_compounded",
+        "pnl.broker_number_untrusted"
+      ]
+    },
+    {
+      "category": "memory",
+      "values": [
+        "memory.poisoned_fact_active",
+        "memory.missing_lifecycle_defaults_active",
+        "memory.supersession_missing",
+        "memory.current_truth_overridden",
+        "memory.context_clipped",
+        "memory.shadow_contaminates_champion",
+        "memory.outcome_decay_needed"
+      ]
+    },
+    {
+      "category": "self_heal",
+      "values": [
+        "self_heal.safe_artifact_repair",
+        "self_heal.unsafe_money_repair"
+      ]
+    },
+    {
+      "category": "chat",
+      "values": [
+        "chat.question_as_mutation",
+        "chat.destructive_without_direct_command",
+        "chat.stale_status_answer",
+        "chat.slow_answer_blocks_polling",
+        "chat.missing_alert",
+        "chat.format_or_json_failure"
+      ]
+    },
+    {
+      "category": "llm",
+      "values": [
+        "llm.malformed_json",
+        "llm.schema_valid_but_unsafe",
+        "llm.null_operational_field",
+        "llm.prompt_drift",
+        "llm.reasoning_mode_drift",
+        "llm.tool_loop_protocol_error"
+      ]
+    },
+    {
+      "category": "harness",
+      "values": [
+        "harness.trace_missing",
+        "harness.golden_scenario_failed"
+      ]
+    },
+    {
+      "category": "replay",
+      "values": [
+        "replay.external_api_called",
+        "replay.target_posture_as_exact_pnl"
+      ]
+    },
+    {
+      "category": "shadow",
+      "values": [
+        "shadow.failure_not_isolated",
+        "shadow.stale_running_state",
+        "shadow.unfair_cadence",
+        "shadow.external_flow_not_rebased",
+        "shadow.loose_quote_prediction",
+        "shadow.context_policy_violation",
+        "shadow.scoreboard_epoch_dirty",
+        "shadow.raw_return_overweighted"
+      ]
+    },
+    {
+      "category": "orchestration",
+      "values": [
+        "orchestration.queue_hides_bad_boundary",
+        "orchestration.timeout_no_terminal_state",
+        "orchestration.enqueue_failed_lease_stuck",
+        "orchestration.event_loop_blocked"
+      ]
+    },
+    {
+      "category": "cost",
+      "values": [
+        "cost.api_without_purpose",
+        "cost.hidden_provider_call"
+      ]
+    },
+    {
+      "category": "backup",
+      "values": [
+        "backup.missing_or_unverified",
+        "backup.client_version_too_old"
+      ]
+    },
+    {
+      "category": "security",
+      "values": [
+        "security.secret_leak_attempt",
+        "security.hidden_context_leak"
+      ]
+    }
+  ]
+}

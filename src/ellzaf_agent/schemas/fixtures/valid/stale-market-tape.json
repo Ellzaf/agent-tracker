@@ -1,0 +1,43 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_stale_market_tape",
+  "idempotency_key": "fixture/stale-market-tape",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_stale_market_tape",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "market.snapshot.recorded",
+  "occurred_at": "2026-06-07T00:04:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["AAPL"],
+  "payload": {
+    "source": "local_5m_bars",
+    "component": "market_data",
+    "severity": "warning",
+    "mistake_family": "market.open_session_stale_bars",
+    "money_impact": "possible",
+    "blocking_status": "workflow_deferred",
+    "resolution_status": "open",
+    "next_safe_action": "retry",
+    "market_session": "open",
+    "freshness_seconds": 1800,
+    "allowed_consumers": ["diagnostics"],
+    "evidence_refs": [{"table": "market_tape_snapshots", "id": "tape_1"}]
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

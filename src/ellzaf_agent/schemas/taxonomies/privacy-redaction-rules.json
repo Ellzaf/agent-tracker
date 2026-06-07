@@ -1,0 +1,24 @@
+{
+  "version": "2026-06-07",
+  "blocked_material": [
+    "api_keys",
+    "bearer_tokens",
+    "passwords",
+    "broker_account_identifiers",
+    "raw_broker_payloads",
+    "raw_prompts_by_default",
+    "raw_model_outputs_by_default",
+    "full_local_paths",
+    "raw_chat_identifiers",
+    "hidden_chain_of_thought",
+    "raw_binary_payloads"
+  ],
+  "allowed_substitutes": [
+    "sha256_hash",
+    "stable_local_reference",
+    "character_count",
+    "byte_count",
+    "redacted_marker",
+    "sanitized_reason_code"
+  ]
+}

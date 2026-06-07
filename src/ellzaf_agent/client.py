@@ -236,7 +236,7 @@ class Run:
                     error_kind=exc_type.__name__ if exc_type else "exception",
                     message=str(exc) or repr(exc),
                     retryable=False,
-                    component="run_context",
+                    component="harness",
                 )
                 self.complete(
                     status="failed",

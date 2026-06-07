@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/trade.rejected.schema.json",
+  "title": "trade.rejected",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "trade.rejected" },
+        "payload": {
+          "type": "object",
+          "required": ["rejected_by", "reason_code"],
+          "properties": {
+            "rejected_by": { "type": "string", "minLength": 1 },
+            "reason_code": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

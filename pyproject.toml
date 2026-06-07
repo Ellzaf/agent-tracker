@@ -31,13 +31,20 @@ dependencies = []
 [project.optional-dependencies]
 dev = [
   "build>=1.2",
+  "jsonschema>=4.23",
   "pytest>=8",
   "ruff>=0.8",
+]
+aitrade = [
+  "psycopg[binary]>=3.2",
 ]
 otel = []
 openai = []
 langchain = []
 agno = []
+
+[project.scripts]
+ellzaf-agent = "ellzaf_agent.cli:main"
 
 [project.urls]
 Homepage = "https://ellzaf.com"
@@ -45,6 +52,16 @@ Documentation = "https://ellzaf.com"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+ellzaf_agent = [
+  "prompts/*.md",
+  "schemas/*.json",
+  "schemas/event-types/*.json",
+  "schemas/fixtures/invalid/*.json",
+  "schemas/fixtures/valid/*.json",
+  "schemas/taxonomies/*.json",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,45 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_flow_adjusted_pnl",
+  "idempotency_key": "fixture/flow-adjusted-pnl",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_flow_adjusted_pnl",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "portfolio.snapshot.recorded",
+  "occurred_at": "2026-06-07T00:02:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": [],
+  "payload": {
+    "portfolio_kind": "performance_scorecard",
+    "component": "performance",
+    "severity": "info",
+    "mistake_family": "pnl.deposit_as_profit",
+    "money_impact": "none",
+    "blocking_status": "non_blocking",
+    "resolution_status": "resolved",
+    "next_safe_action": "observe",
+    "equity": "11000.00",
+    "external_capital_flow": "1000.00",
+    "trading_pnl_amount": "0.00",
+    "trading_pnl_pct": "0.0000",
+    "account_scope_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "evidence_refs": [{"table": "portfolio_performance_scorecards", "id": "pnl_1"}]
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/market.snapshot.recorded.schema.json",
+  "title": "market.snapshot.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "market.snapshot.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["source"],
+          "properties": {
+            "source": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

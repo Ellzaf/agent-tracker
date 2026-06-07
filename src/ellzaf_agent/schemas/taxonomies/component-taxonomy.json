@@ -1,0 +1,79 @@
+{
+  "version": "2026-06-07",
+  "components": [
+    "allocation",
+    "backup_restore",
+    "broker_runner",
+    "chat",
+    "cost",
+    "doctor",
+    "execution",
+    "harness",
+    "integration",
+    "market_data",
+    "memory",
+    "operator_chat",
+    "orchestration",
+    "performance",
+    "portfolio",
+    "privacy",
+    "queue",
+    "replay",
+    "research",
+    "risk_gate",
+    "shadow",
+    "source_collection",
+    "upload",
+    "website"
+  ],
+  "severity": [
+    "info",
+    "warning",
+    "error",
+    "critical"
+  ],
+  "money_impact": [
+    "none",
+    "possible",
+    "blocked",
+    "submitted",
+    "filled",
+    "unknown"
+  ],
+  "blocking_status": [
+    "non_blocking",
+    "artifact_blocked",
+    "workflow_deferred",
+    "trading_blocked",
+    "execution_blocked",
+    "unknown"
+  ],
+  "resolution_status": [
+    "open",
+    "queued",
+    "retrying",
+    "resolved",
+    "superseded",
+    "exhausted",
+    "ignored",
+    "false_positive"
+  ],
+  "next_safe_action": [
+    "observe",
+    "retry",
+    "repair_artifact",
+    "block_artifact",
+    "reconcile_broker",
+    "ask_operator",
+    "run_test",
+    "stop_execution"
+  ],
+  "coverage_status": [
+    "implemented",
+    "partial",
+    "missing",
+    "not_found",
+    "not_applicable",
+    "warning"
+  ]
+}

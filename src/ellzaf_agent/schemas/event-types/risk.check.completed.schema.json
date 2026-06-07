@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/risk.check.completed.schema.json",
+  "title": "risk.check.completed",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "risk.check.completed" },
+        "payload": {
+          "type": "object",
+          "required": ["risk_check_kind", "approved"],
+          "properties": {
+            "risk_check_kind": { "type": "string", "minLength": 1 },
+            "approved": { "type": "boolean" },
+            "reasons": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -9,16 +9,28 @@ from ellzaf_agent.errors import (
     SchemaValidationError,
     UploadError,
 )
+from ellzaf_agent.integration import (
+    EllzafIntegrationReport,
+    IntegrationSurface,
+    SourceRef,
+    emit_integration_report,
+)
+from ellzaf_agent.sink import JsonlSink
 
 __all__ = [
     "Config",
     "Ellzaf",
     "EllzafError",
+    "EllzafIntegrationReport",
+    "IntegrationSurface",
+    "JsonlSink",
     "QueueError",
     "RedactionError",
     "Run",
     "SchemaValidationError",
+    "SourceRef",
     "UploadError",
+    "emit_integration_report",
 ]
 
 __version__ = "0.1.0"

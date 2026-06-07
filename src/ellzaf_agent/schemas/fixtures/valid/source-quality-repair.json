@@ -1,0 +1,42 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_source_quality_repair",
+  "idempotency_key": "fixture/source-quality-repair",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_source_quality_repair",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "error.recorded",
+  "occurred_at": "2026-06-07T00:00:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["NVDA"],
+  "payload": {
+    "error_kind": "source_quality_repair",
+    "message": "report blocked by missing primary-source evidence",
+    "component": "source_collection",
+    "severity": "error",
+    "mistake_family": "source.truncated_or_missing_evidence",
+    "money_impact": "possible",
+    "blocking_status": "artifact_blocked",
+    "resolution_status": "queued",
+    "next_safe_action": "retry",
+    "evidence_refs": [{"table": "source_quality_repair_incidents", "id": "repair_1"}],
+    "correlation_ids": {"report_id": "report_1"}
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/paper.fill.recorded.schema.json",
+  "title": "paper.fill.recorded",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "paper.fill.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["symbol", "side"],
+          "properties": {
+            "symbol": { "type": "string", "minLength": 1 },
+            "side": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

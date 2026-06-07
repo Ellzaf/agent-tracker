@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/agent.run.started.schema.json",
+  "title": "agent.run.started",
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "agent.run.started" },
+        "payload": {
+          "type": "object",
+          "required": ["run_type"],
+          "properties": {
+            "run_type": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": "2026-06-07",
+  "event_id": "evt_cash_only_risk_block",
+  "idempotency_key": "fixture/cash-only-risk-block",
+  "project": "fixture-agent",
+  "agent_id": "fixture",
+  "run_id": "run_cash_only_risk_block",
+  "span_id": null,
+  "parent_span_id": null,
+  "event_type": "risk.check.completed",
+  "occurred_at": "2026-06-07T00:01:00Z",
+  "received_at": null,
+  "environment": "paper",
+  "symbols": ["MSFT"],
+  "payload": {
+    "risk_check_kind": "deterministic",
+    "approved": false,
+    "reasons": ["cash_only_capacity_below_target_notional"],
+    "component": "risk_gate",
+    "severity": "critical",
+    "mistake_family": "portfolio.buying_power_as_cash",
+    "money_impact": "blocked",
+    "blocking_status": "trading_blocked",
+    "resolution_status": "open",
+    "next_safe_action": "block_artifact",
+    "evidence_refs": [{"table": "risk_checks", "id": "risk_1"}]
+  },
+  "privacy": {
+    "full_io": false,
+    "redaction_version": "2026-06-07",
+    "contains_prompt_text": false,
+    "contains_output_text": false,
+    "contains_broker_payload": false,
+    "contains_account_identifier": false,
+    "truncated": false
+  },
+  "sdk": {
+    "name": "ellzaf-agent-python",
+    "version": "0.1.0",
+    "language": "python"
+  }
+}

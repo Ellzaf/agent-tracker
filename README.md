@@ -1,7 +1,7 @@
 # Ellzaf Agent
 
-Python SDK for sending redacted telemetry from self-built AI trading agents to
-Ellzaf.
+Python SDK and local tooling for sending redacted telemetry from self-built AI
+trading agents to Ellzaf.
 
 Use Ellzaf Agent to record:
 
@@ -28,6 +28,12 @@ For development:
 
 ```bash
 python -m pip install -e ".[dev]"
+```
+
+For the optional aitrade-style Postgres exporter:
+
+```bash
+python -m pip install -e ".[aitrade]"
 ```
 
 ## Configure
@@ -108,6 +114,28 @@ ellzaf.event(
     },
 )
 ```
+
+## Mistake Fields
+
+Add normalized fields when your repo already has the evidence:
+
+```python
+run.risk_check(
+    approved=False,
+    reasons=["cash_only_capacity_below_target_notional"],
+    component="risk_gate",
+    severity="critical",
+    mistake_family="portfolio.buying_power_as_cash",
+    money_impact="blocked",
+    blocking_status="trading_blocked",
+    resolution_status="open",
+    next_safe_action="block_artifact",
+    evidence_refs=[{"table": "risk_checks", "id": "risk_123"}],
+)
+```
+
+The SDK validates bundled taxonomy values. Use `custom.<local_family>` for a
+local failure mode that does not fit the built-in taxonomy.
 
 ## Run Helpers
 
@@ -194,6 +222,87 @@ export ELLZAF_TELEMETRY_ENABLED="false"
 
 You can create local event objects through `ellzaf.event(...)`; the SDK
 validates and returns them without writing queue files.
+
+## CLI
+
+```bash
+ellzaf-agent init
+ellzaf-agent doctor-repo --path .
+ellzaf-agent print-agent-prompt --profile ebook
+ellzaf-agent emit-sample --profile ebook --output ellzaf-sample.jsonl
+ellzaf-agent validate-jsonl ellzaf-sample.jsonl
+ellzaf-agent queue-health
+ellzaf-agent flush
+```
+
+Only `flush` uses the network. The other commands inspect local files, print
+package prompts, or validate JSONL.
+
+## JSONL Export
+
+Use `JsonlSink` for local audits, support bundles, and adapters:
+
+```python
+from ellzaf_agent import JsonlSink
+
+sink = JsonlSink("ellzaf-events.jsonl")
+sink.write(event)
+```
+
+The sink redacts, validates, and writes one event per line.
+
+## Repo Doctor
+
+```python
+from ellzaf_agent.doctor import doctor_repo
+
+report = doctor_repo(".")
+print(report.to_dict())
+```
+
+The doctor reads the repo and reports coverage for ebook-style surfaces such as
+sources, prompts, model calls, market data, decisions, risk gates, paper fills,
+PnL, memory, shadow models, replay, cost, redaction, and backups. It does not
+modify code.
+
+## Aitrade-Style Export
+
+Use the optional adapter when your repo stores starter-style rows:
+
+```python
+from ellzaf_agent.adapters.aitrade import AitradeExporter
+
+exporter = AitradeExporter.from_database_url(database_url)
+summary = exporter.export_jsonl("ellzaf-events.jsonl")
+```
+
+For tests, pass fixture rows without a database:
+
+```python
+events, summary = AitradeExporter().events_from_rows(rows_by_table)
+```
+
+## Integration Tests
+
+Downstream repos can validate their emitted events with:
+
+```python
+from ellzaf_agent.testing import assert_valid_ellzaf_events
+
+def test_ellzaf_events(events):
+    assert_valid_ellzaf_events(events)
+```
+
+The helper checks schema rules, UTC timestamps, taxonomy values, privacy flags,
+secret patterns, raw prompt/output leaks, raw broker payloads, raw account IDs,
+and required event coverage when requested.
+
+## Package Contract
+
+The package ships JSON Schemas, taxonomies, valid fixtures, invalid fixtures,
+and coding-agent prompts under `ellzaf_agent/schemas` and
+`ellzaf_agent/prompts`. Backend ingestion services should validate against the
+same schema version and taxonomy.
 
 ## Development
 
