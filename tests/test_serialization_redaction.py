@@ -89,6 +89,27 @@ def test_redaction_scrubs_account_and_broker_payloads() -> None:
     assert result.privacy["contains_account_identifier"] is True
 
 
+def test_redaction_preserves_existing_redacted_hashes() -> None:
+    existing = {
+        "sha256": "sha256:" + "0" * 64,
+        "chars": 120,
+        "redacted": True,
+    }
+
+    result = redact_payload(
+        {
+            "prompt": existing,
+            "account_id": existing,
+            "broker_payload": existing,
+        },
+        store_full_io=False,
+    )
+
+    assert result.value["prompt"] == existing
+    assert result.value["account_id"] == existing
+    assert result.value["broker_payload"] == existing
+
+
 @pytest.mark.parametrize(
     "secret",
     [

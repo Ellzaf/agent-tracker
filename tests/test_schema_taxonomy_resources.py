@@ -85,3 +85,39 @@ def test_json_files_are_parseable_from_installed_package() -> None:
     root = Path(__file__).parents[1] / "src" / "ellzaf_agent" / "schemas"
     for path in root.rglob("*.json"):
         assert json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_json_schemas_validate_with_jsonschema_when_available() -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+
+    envelope = read_json_resource("schemas", "event-envelope.schema.json")
+    validator = jsonschema.Draft202012Validator(
+        envelope,
+        format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER,
+    )
+    jsonschema.Draft202012Validator.check_schema(envelope)
+    jsonschema.Draft202012Validator.check_schema(
+        read_json_resource("schemas", "batch.schema.json")
+    )
+    for name in list_resource_names("schemas", "event-types"):
+        jsonschema.Draft202012Validator.check_schema(
+            read_json_resource("schemas", "event-types", name)
+        )
+    for name in list_resource_names("schemas", "fixtures", "valid"):
+        validator.validate(read_json_resource("schemas", "fixtures", "valid", name))
+
+    valid_event = read_json_resource(
+        "schemas", "fixtures", "valid", "cash-only-risk-block.json"
+    )
+    for field, value in [
+        ("event_id", "evt_"),
+        ("run_id", "run_"),
+        ("idempotency_key", "bad key"),
+        ("project", "paper/agent"),
+        ("project", "paper agent"),
+        ("agent_id", "agent\\one"),
+    ]:
+        invalid_event = dict(valid_event)
+        invalid_event[field] = value
+        with pytest.raises(jsonschema.ValidationError):
+            validator.validate(invalid_event)

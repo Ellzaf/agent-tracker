@@ -157,6 +157,8 @@ def _handle_io_value(
     kind: str,
     privacy: dict[str, Any],
 ) -> Any:
+    if _is_redacted_hash(value):
+        return value
     if store_full_io:
         if kind == "prompt":
             privacy["contains_prompt_text"] = True
@@ -173,6 +175,8 @@ def _handle_io_value(
 
 
 def _hash_or_redact(value: Any) -> dict[str, Any]:
+    if _is_redacted_hash(value):
+        return dict(value)
     text = _stable_text(value)
     return {
         "sha256": hash_text(text),
@@ -201,3 +205,12 @@ def _contains_forbidden(value: Any) -> bool:
     if isinstance(value, str):
         return any(pattern.search(value) for pattern in SECRET_PATTERNS)
     return False
+
+
+def _is_redacted_hash(value: Any) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and value.get("redacted") is True
+        and isinstance(value.get("sha256"), str)
+        and str(value["sha256"]).startswith("sha256:")
+    )

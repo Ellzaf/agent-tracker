@@ -147,6 +147,90 @@ def test_partial_rejection_marks_permanent_failure(tmp_path: Path) -> None:
     assert len(list((tmp_path / "failed").glob("*.permanent.jsonl"))) == 1
 
 
+def test_malformed_success_response_keeps_events_pending(tmp_path: Path) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        return 200, b'{"accepted":0,"duplicates":0,"rejected":[]}'
+
+    client = Ellzaf(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event(
+        "risk.check.completed", run_id="run_mismatch", payload={"approved": True}
+    )
+
+    summary = client.flush()
+
+    assert summary.retryable == 1
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        b'{"accepted":"1","duplicates":0,"rejected":[]}',
+        b'{"accepted":-1,"duplicates":2,"rejected":[]}',
+        b'{"accepted":0,"duplicates":true,"rejected":[]}',
+        b'{"accepted":0,"duplicates":0,"rejected":"bad"}',
+        b'{"accepted":0,"duplicates":0,"rejected":[{}]}',
+        (
+            b'{"accepted":0,"duplicates":0,'
+            b'"rejected":[{"event_id":"evt_other","code":"bad",'
+            b'"message":"bad","retryable":false}]}'
+        ),
+    ],
+)
+def test_invalid_success_response_keeps_events_pending(
+    tmp_path: Path,
+    response: bytes,
+) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        return 200, response
+
+    client = Ellzaf(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event(
+        "risk.check.completed",
+        run_id="run_invalid_response",
+        payload={"approved": True},
+    )
+
+    summary = client.flush()
+
+    assert summary.retryable == 1
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
+def test_duplicate_response_marks_uploaded_without_counting_as_accepted(
+    tmp_path: Path,
+) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        return 200, b'{"accepted":0,"duplicates":1,"rejected":[]}'
+
+    client = Ellzaf(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event(
+        "risk.check.completed", run_id="run_duplicate", payload={"approved": True}
+    )
+
+    summary = client.flush()
+
+    assert summary.accepted == 0
+    assert summary.duplicates == 1
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 0
+    assert len(list((tmp_path / "uploaded").glob("*.jsonl"))) == 1
+
+
 def test_server_error_keeps_events_pending_and_returns_retryable_summary(
     tmp_path: Path,
 ) -> None:

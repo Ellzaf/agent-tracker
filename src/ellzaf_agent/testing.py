@@ -107,9 +107,8 @@ def _scan_payload_keys(value: Any, *, index: int, path: str) -> None:
         for raw_key, item in value.items():
             key = str(raw_key)
             lowered = key.lower()
-            if (
-                lowered in PROMPT_TEXT_KEYS | OUTPUT_TEXT_KEYS
-                and not _is_redacted_hash(item)
+            if lowered in PROMPT_TEXT_KEYS | OUTPUT_TEXT_KEYS and not _is_redacted_hash(
+                item
             ):
                 raise AssertionError(
                     f"event {index} contains unredacted IO at {path}.{key}"

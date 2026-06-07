@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any
@@ -15,6 +16,8 @@ from ellzaf_agent.constants import (
 from ellzaf_agent.errors import SchemaValidationError
 from ellzaf_agent.serialization import strict_json_dumps
 from ellzaf_agent.taxonomy import validate_taxonomy_fields
+
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 EVENT_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
     "agent.run.started": {"run_type"},
@@ -72,17 +75,21 @@ def validate_event(event: Mapping[str, Any], *, max_event_bytes: int) -> None:
 
     if event["schema_version"] != SCHEMA_VERSION:
         raise SchemaValidationError("unsupported schema_version")
-    if not _nonempty_string(event["event_id"], prefix="evt_"):
+    if not _safe_prefixed_string(event["event_id"], prefix="evt_"):
         raise SchemaValidationError("event_id must be a non-empty evt_ string")
     if not _nonempty_string(event["idempotency_key"]):
         raise SchemaValidationError("idempotency_key must be non-empty")
+    if any(char.isspace() for char in event["idempotency_key"]):
+        raise SchemaValidationError("idempotency_key must not contain whitespace")
     if not _nonempty_string(event["project"]):
         raise SchemaValidationError("project must be non-empty")
-    if "/" in event["project"]:
-        raise SchemaValidationError("project must not contain '/'")
+    if _contains_forbidden_identifier_char(event["project"]):
+        raise SchemaValidationError("project contains unsupported characters")
     if not _nonempty_string(event["agent_id"]):
         raise SchemaValidationError("agent_id must be non-empty")
-    if not _nonempty_string(event["run_id"], prefix="run_"):
+    if _contains_forbidden_identifier_char(event["agent_id"]):
+        raise SchemaValidationError("agent_id contains unsupported characters")
+    if not _safe_prefixed_string(event["run_id"], prefix="run_"):
         raise SchemaValidationError("run_id must be a non-empty run_ string")
 
     event_type = event["event_type"]
@@ -172,3 +179,16 @@ def _nonempty_string(value: Any, *, prefix: str | None = None) -> bool:
     if not isinstance(value, str) or not value:
         return False
     return prefix is None or value.startswith(prefix)
+
+
+def _safe_prefixed_string(value: Any, *, prefix: str) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith(prefix)
+        and len(value) > len(prefix)
+        and bool(_SAFE_ID_RE.fullmatch(value))
+    )
+
+
+def _contains_forbidden_identifier_char(value: str) -> bool:
+    return any(char.isspace() or char in {"/", "\\", "\x00"} for char in value)

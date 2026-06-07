@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import stat
 from pathlib import Path
 
 from ellzaf_agent import Config, Ellzaf, JsonlSink
@@ -33,6 +34,16 @@ def test_jsonl_sink_redacts_and_appends_events(tmp_path: Path) -> None:
     assert len(events) == 1
     assert events[0]["event_id"] == written["event_id"]
     assert events[0]["payload"]["prompt"]["redacted"] is True
+
+
+def test_jsonl_sink_truncates_new_files_with_private_permissions(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "events.jsonl"
+
+    JsonlSink(output, append=False)
+
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
 
 
 def test_cli_print_prompt_emit_sample_and_validate(

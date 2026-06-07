@@ -38,7 +38,10 @@ def _bool(value: str | bool | None, *, default: bool) -> bool:
 def _int(value: str | None, *, default: int, minimum: int) -> int:
     if value is None or value == "":
         return default
-    parsed = int(value)
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ConfigError(f"invalid integer value: {value!r}") from exc
     if parsed < minimum:
         raise ConfigError(f"value must be >= {minimum}: {value!r}")
     return parsed
@@ -47,10 +50,17 @@ def _int(value: str | None, *, default: int, minimum: int) -> int:
 def _float(value: str | None, *, default: float, minimum: float) -> float:
     if value is None or value == "":
         return default
-    parsed = float(value)
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ConfigError(f"invalid float value: {value!r}") from exc
     if parsed < minimum:
         raise ConfigError(f"value must be >= {minimum}: {value!r}")
     return parsed
+
+
+def _contains_forbidden_identifier_char(value: str) -> bool:
+    return any(char.isspace() or char in {"/", "\\", "\x00"} for char in value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,12 +155,14 @@ class Config:
 
         if not project:
             raise ConfigError("project is required")
-        if "/" in project:
-            raise ConfigError("project must not contain '/'")
+        if _contains_forbidden_identifier_char(project):
+            raise ConfigError("project contains unsupported characters")
         if environment not in SUPPORTED_ENVIRONMENTS:
             raise ConfigError(f"unsupported environment: {environment}")
         if not agent_id:
             raise ConfigError("agent_id is required")
+        if _contains_forbidden_identifier_char(agent_id):
+            raise ConfigError("agent_id contains unsupported characters")
         if not endpoint:
             raise ConfigError("endpoint is required")
         if self.max_event_bytes < 1024:

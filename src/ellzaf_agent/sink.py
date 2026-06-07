@@ -30,7 +30,8 @@ class JsonlSink:
         self.fsync = fsync
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not append:
-            self.path.write_text("", encoding="utf-8")
+            fd = os.open(self.path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+            os.close(fd)
 
     def write(
         self,

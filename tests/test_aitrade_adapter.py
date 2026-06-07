@@ -53,6 +53,18 @@ def test_aitrade_exporter_marks_required_missing_surfaces() -> None:
     assert "risk_checks" in missing
 
 
+def test_aitrade_exporter_accepts_empty_explicit_rows_without_database(
+    tmp_path: Path,
+) -> None:
+    exporter = AitradeExporter(project="paper-agent")
+    output = tmp_path / "empty.jsonl"
+
+    summary = exporter.export_jsonl(output, rows_by_table={})
+
+    assert summary.exported == 0
+    assert output.read_text(encoding="utf-8") == ""
+
+
 def _rows() -> dict[str, list[dict[str, object]]]:
     return {
         "llm_runs": [

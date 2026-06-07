@@ -51,6 +51,42 @@ def test_invalid_event_type_is_rejected(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("event_id", "evt_"),
+        ("event_id", "evt_bad space"),
+        ("event_id", "evt_bad/slash"),
+        ("event_id", "evt_bad\\slash"),
+        ("run_id", "run_"),
+        ("run_id", "run_bad space"),
+        ("run_id", "run_bad/slash"),
+        ("run_id", "run_bad\\slash"),
+        ("idempotency_key", "bad key"),
+        ("idempotency_key", "bad\tkey"),
+    ],
+)
+def test_event_rejects_unsafe_ids(
+    tmp_path: Path,
+    field: str,
+    value: str,
+) -> None:
+    client = make_client(tmp_path)
+    kwargs = {
+        "event_id": "evt_safe",
+        "run_id": "run_safe",
+        "idempotency_key": "safe/key",
+    }
+    kwargs[field] = value
+
+    with pytest.raises(SchemaValidationError):
+        client.event(
+            "risk.check.completed",
+            payload={"approved": True},
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
     "occurred_at",
     [
         "2026-06-07T06:30:00Z",

@@ -122,7 +122,11 @@ class AitradeExporter:
         limit_per_table: int = 500,
         append: bool = False,
     ) -> AitradeExportSummary:
-        rows = rows_by_table or self.fetch_rows(limit_per_table=limit_per_table)
+        rows = (
+            self.fetch_rows(limit_per_table=limit_per_table)
+            if rows_by_table is None
+            else rows_by_table
+        )
         events, summary = self.events_from_rows(rows)
         JsonlSink(
             output, max_event_bytes=self.max_event_bytes, append=append
@@ -165,6 +169,7 @@ class AitradeExporter:
             raise AdapterError("database_url is required")
         try:
             import psycopg
+            from psycopg import sql
             from psycopg.rows import dict_row
         except ModuleNotFoundError as exc:
             raise AdapterError(
@@ -176,12 +181,14 @@ class AitradeExporter:
             for table, order_column in _TABLE_ORDER_COLUMNS.items():
                 try:
                     with conn.cursor() as cursor:
-                        sql = (
-                            f"SELECT * FROM {table} "
-                            f"ORDER BY {order_column} DESC LIMIT %s"
+                        query = sql.SQL(
+                            "SELECT * FROM {} ORDER BY {} DESC LIMIT %s"
+                        ).format(
+                            sql.Identifier(table),
+                            sql.Identifier(order_column),
                         )
                         cursor.execute(
-                            sql,
+                            query,
                             (limit_per_table,),
                         )
                         rows_by_table[table] = [dict(row) for row in cursor.fetchall()]
@@ -965,7 +972,7 @@ class AitradeExporter:
                 "paper.fill.recorded",
                 run_id=_run_id(table, row),
                 symbols=[symbol],
-                occurred_at=_time(row, "created_at", "filled_at"),
+                occurred_at=_time(row, "filled_at", "created_at"),
                 environment="shadow",
                 payload={
                     "symbol": symbol,

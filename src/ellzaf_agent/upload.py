@@ -68,10 +68,18 @@ class BatchUploader:
             return FlushSummary(0, 0, 0, 0, 0)
 
         response = self._post_batch([item.event for item in pending])
+        accounted_for = response.accepted + response.duplicates + len(response.rejected)
+        if accounted_for != len(pending):
+            raise UploadError("server response did not account for every event")
+        pending_event_ids = {str(item.event.get("event_id")) for item in pending}
         rejected_by_id = {
             item.event_id: item for item in response.rejected if item.event_id
         }
-        accepted = 0
+        if len(rejected_by_id) != len(response.rejected):
+            raise UploadError("server response contained duplicate rejected event IDs")
+        if unknown_rejected_ids := set(rejected_by_id) - pending_event_ids:
+            unknown = ", ".join(sorted(unknown_rejected_ids))
+            raise UploadError(f"server rejected unknown event IDs: {unknown}")
         duplicates = response.duplicates
         retryable = 0
         for item in pending:
@@ -79,7 +87,6 @@ class BatchUploader:
             rejection = rejected_by_id.get(event_id)
             if rejection is None:
                 queue.mark_uploaded(item)
-                accepted += 1
                 continue
             if rejection.retryable:
                 retryable += 1
@@ -87,7 +94,7 @@ class BatchUploader:
             queue.mark_failed(item, permanent=True)
         return FlushSummary(
             attempted=len(pending),
-            accepted=accepted,
+            accepted=response.accepted,
             duplicates=duplicates,
             rejected=len(response.rejected),
             retryable=retryable,
@@ -138,22 +145,52 @@ class _UploadResponse:
     rejected: list[RejectedEvent]
 
     @classmethod
-    def from_payload(cls, payload: dict[str, Any]) -> _UploadResponse:
+    def from_payload(cls, payload: Any) -> _UploadResponse:
+        if not isinstance(payload, dict):
+            raise UploadError("server returned a non-object upload response")
+        accepted = _non_negative_int(payload.get("accepted", 0), field="accepted")
+        duplicates = _non_negative_int(payload.get("duplicates", 0), field="duplicates")
+        raw_rejected = payload.get("rejected", [])
+        if not isinstance(raw_rejected, list):
+            raise UploadError("server returned invalid rejected events")
         rejected = [
-            RejectedEvent(
-                event_id=item.get("event_id"),
-                code=str(item.get("code", "server_error")),
-                message=str(item.get("message", "")),
-                retryable=bool(item.get("retryable", False)),
-            )
-            for item in payload.get("rejected", [])
-            if isinstance(item, dict)
+            _rejected_event_from_payload(item, index=index)
+            for index, item in enumerate(raw_rejected)
         ]
         return cls(
-            accepted=int(payload.get("accepted", 0)),
-            duplicates=int(payload.get("duplicates", 0)),
+            accepted=accepted,
+            duplicates=duplicates,
             rejected=rejected,
         )
+
+
+def _non_negative_int(value: Any, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise UploadError(f"server returned invalid {field} count")
+    return value
+
+
+def _rejected_event_from_payload(item: Any, *, index: int) -> RejectedEvent:
+    if not isinstance(item, dict):
+        raise UploadError(f"server returned invalid rejected event at index {index}")
+    event_id = item.get("event_id")
+    if not isinstance(event_id, str) or not event_id:
+        raise UploadError(f"server omitted rejected event_id at index {index}")
+    code = item.get("code", "server_error")
+    message = item.get("message", "")
+    retryable = item.get("retryable", False)
+    if not isinstance(code, str) or not code:
+        raise UploadError(f"server returned invalid rejection code at index {index}")
+    if not isinstance(message, str):
+        raise UploadError(f"server returned invalid rejection message at index {index}")
+    if not isinstance(retryable, bool):
+        raise UploadError(f"server returned invalid retryable flag at index {index}")
+    return RejectedEvent(
+        event_id=event_id,
+        code=code,
+        message=message,
+        retryable=retryable,
+    )
 
 
 def urllib_transport(
