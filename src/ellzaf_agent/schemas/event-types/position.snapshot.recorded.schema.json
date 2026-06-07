@@ -2,6 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/position.snapshot.recorded.schema.json",
   "title": "position.snapshot.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nullableFiniteNumber": {
+      "anyOf": [{ "$ref": "#/$defs/finiteNumber" }, { "type": "null" }]
+    }
+  },
   "allOf": [
     { "$ref": "../event-envelope.schema.json" },
     {
@@ -15,13 +29,13 @@
             "portfolio_kind": { "type": "string", "minLength": 1 },
             "position_id": { "type": "string", "minLength": 1 },
             "symbol": { "type": "string", "minLength": 1 },
-            "quantity": { "type": ["number", "string"] },
-            "average_price": { "type": ["number", "string", "null"] },
-            "market_price": { "type": ["number", "string", "null"] },
-            "market_value": { "type": ["number", "string", "null"] },
-            "cost_basis": { "type": ["number", "string", "null"] },
-            "unrealized_pnl": { "type": ["number", "string", "null"] },
-            "realized_pnl": { "type": ["number", "string", "null"] },
+            "quantity": { "$ref": "#/$defs/finiteNumber" },
+            "average_price": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "market_price": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "market_value": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "cost_basis": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "unrealized_pnl": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "realized_pnl": { "$ref": "#/$defs/nullableFiniteNumber" },
             "opened_at": { "type": ["string", "null"], "format": "date-time" },
             "holding_period_seconds": { "type": ["integer", "null"], "minimum": 0 },
             "strategy_id": { "type": "string" },

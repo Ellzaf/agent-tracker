@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -80,6 +81,53 @@ OUTCOME_KINDS = {
     "replayed",
 }
 SESSION_STATES = {"pre_market", "regular", "after_hours", "closed"}
+_STRICT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_REPORTING_IDENTITY_FIELDS = {
+    "asset",
+    "build_id",
+    "capital_flow_id",
+    "config_hash",
+    "currency",
+    "decision_id",
+    "fill_id",
+    "order_intent_id",
+    "period_kind",
+    "portfolio_kind",
+    "position_id",
+    "risk_gate_version",
+    "strategy_id",
+    "symbol",
+}
+_NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
+    "average_price",
+    "case_count",
+    "drawdown_pct",
+    "fees",
+    "freshness_seconds",
+    "holding_period_seconds",
+    "intended_price",
+    "intended_quantity",
+    "market_price",
+    "max_drawdown_pct",
+    "planned_reward_risk",
+    "price",
+    "return_base",
+    "source_confidence",
+}
+_SIGNED_EXTENSION_NUMBER_FIELDS = {
+    "compounded_return_pct",
+    "cost_basis",
+    "flow_adjusted_equity_change",
+    "market_value",
+    "net_pnl_amount",
+    "planned_risk_amount",
+    "planned_risk_pct",
+    "raw_equity_change",
+    "realized_pnl",
+    "trading_pnl_amount",
+    "trading_pnl_pct",
+    "unrealized_pnl",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +165,7 @@ class ReportingReadiness:
             "can_publish_proof": self.can_publish_proof,
             "missing_fields": list(self.missing_fields),
             "warnings": list(self.warnings),
+            "strict_reporting_ready": self.strict_reporting_ready,
         }
 
 
@@ -134,25 +183,36 @@ def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> N
         )
 
     if event_type == "order.intent.recorded":
+        _require_nonempty(payload, "order_intent_id")
+        _require_nonempty(payload, "decision_id")
+        _require_nonempty(payload, "symbol")
         _require_enum(payload, "side", ORDER_SIDES)
         _require_number(payload, "intended_quantity", minimum=Decimal("0"))
         _require_optional_number(payload, "intended_price", minimum=Decimal("0"))
     elif event_type == "decision.outcome.recorded":
+        _require_nonempty(payload, "decision_id")
         _require_enum(payload, "outcome_kind", OUTCOME_KINDS)
         _require_optional_bool(payload, "followed_plan")
         _require_optional_bool(payload, "changed_by_risk_gate")
         _require_optional_bool(payload, "changed_by_operator")
     elif event_type == "position.snapshot.recorded":
+        _require_nonempty(payload, "portfolio_kind")
+        _require_nonempty(payload, "position_id")
+        _require_nonempty(payload, "symbol")
         _require_number(payload, "quantity")
         _require_optional_number(payload, "average_price", minimum=Decimal("0"))
         _require_optional_number(payload, "market_price", minimum=Decimal("0"))
         _require_optional_number(payload, "market_value")
     elif event_type == "capital.flow.recorded":
+        _require_nonempty(payload, "capital_flow_id")
+        _require_nonempty(payload, "asset")
+        _require_nonempty(payload, "currency")
         _require_enum(payload, "flow_kind", FLOW_KINDS)
         _require_number(payload, "amount")
         _require_bool(payload, "included_in_trading_pnl")
         _require_date(payload, "session_date")
     elif event_type == "performance.snapshot.recorded":
+        _require_nonempty(payload, "period_kind")
         _require_date(payload, "session_date")
         _require_date(payload, "period_start")
         _require_date(payload, "period_end")
@@ -161,6 +221,7 @@ def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> N
         _require_optional_number(payload, "return_base")
         _require_optional_number(payload, "compounded_return_pct")
     elif event_type == "strategy.context.recorded":
+        _require_nonempty(payload, "strategy_id")
         _require_optional_number(payload, "planned_risk_amount")
         _require_optional_number(payload, "planned_risk_pct")
         _require_optional_number(payload, "planned_reward_risk")
@@ -358,6 +419,15 @@ def _validate_reporting_extensions(
             isinstance(item, str) and item.startswith("evt_") for item in linked
         ):
             raise SchemaValidationError("linked_event_ids must contain event IDs")
+    if _event_type == "paper.fill.recorded":
+        _require_optional_number(payload, "quantity", minimum=Decimal("0"))
+    for field in _REPORTING_IDENTITY_FIELDS:
+        if field in payload and payload[field] is not None:
+            _require_nonempty(payload, field)
+    for field in _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS:
+        _require_optional_number(payload, field, minimum=Decimal("0"))
+    for field in _SIGNED_EXTENSION_NUMBER_FIELDS:
+        _require_optional_number(payload, field)
 
 
 def _require_nonempty(payload: Mapping[str, Any], field: str) -> None:
@@ -408,6 +478,8 @@ def _require_date(payload: Mapping[str, Any], field: str) -> None:
     value = payload.get(field)
     if not isinstance(value, str) or not value:
         raise SchemaValidationError(f"{field} must be an ISO date")
+    if not _STRICT_DATE_RE.fullmatch(value):
+        raise SchemaValidationError(f"{field} must be an ISO date")
     try:
         date.fromisoformat(value)
     except ValueError as exc:
@@ -418,9 +490,12 @@ def _decimal(value: Any, *, field: str) -> Decimal:
     if isinstance(value, bool) or value is None:
         raise SchemaValidationError(f"{field} must be numeric")
     try:
-        return Decimal(str(value))
+        parsed = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise SchemaValidationError(f"{field} must be numeric") from exc
+    if not parsed.is_finite():
+        raise SchemaValidationError(f"{field} must be finite")
+    return parsed
 
 
 def _has_fields(payload: Mapping[str, Any], fields: set[str]) -> bool:

@@ -157,6 +157,7 @@ def test_reporting_helpers_emit_strict_ready_events(tmp_path: Path) -> None:
     assert_valid_ellzaf_events(events, profile="strict-reporting")
     readiness = assess_reporting_readiness(events)
     assert readiness.strict_reporting_ready is True
+    assert readiness.to_dict()["strict_reporting_ready"] is True
     assert readiness.can_compute_closed_trade_stats is True
     assert readiness.can_generate_repair_prompts is True
 
@@ -210,6 +211,56 @@ def test_reporting_fixtures_are_strict_reporting_ready() -> None:
                 "included_in_trading_pnl": False,
             },
         ),
+        (
+            "capital.flow.recorded",
+            {
+                "capital_flow_id": "flow_1",
+                "flow_kind": "deposit",
+                "amount": "Infinity",
+                "asset": "USD",
+                "currency": "USD",
+                "session_date": "2026-06-07",
+                "included_in_trading_pnl": False,
+            },
+        ),
+        (
+            "order.intent.recorded",
+            {
+                "order_intent_id": "intent_1",
+                "decision_id": "decision_1",
+                "symbol": "",
+                "side": "buy",
+                "intended_quantity": "1",
+            },
+        ),
+        (
+            "order.intent.recorded",
+            {
+                "order_intent_id": "intent_1",
+                "decision_id": "decision_1",
+                "symbol": "NVDA",
+                "side": "buy",
+                "intended_quantity": "NaN",
+            },
+        ),
+        (
+            "performance.snapshot.recorded",
+            {
+                "period_kind": "daily",
+                "period_start": "20260607",
+                "period_end": "2026-06-07",
+                "session_date": "2026-06-07",
+            },
+        ),
+        (
+            "paper.fill.recorded",
+            {
+                "symbol": "NVDA",
+                "side": "buy",
+                "quantity": "not-a-number",
+                "price": "101.00",
+            },
+        ),
     ],
 )
 def test_reporting_payload_validation_rejects_bad_values(
@@ -223,6 +274,43 @@ def test_reporting_payload_validation_rejects_bad_values(
 
     with pytest.raises(SchemaValidationError):
         client.event(event_type, run_id="run_reporting_bad", payload=payload)
+
+
+def test_reporting_accepts_legitimate_negative_position_and_return_values(
+    tmp_path: Path,
+) -> None:
+    client = Ellzaf(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+
+    position = client.event(
+        "position.snapshot.recorded",
+        run_id="run_reporting_signed",
+        payload={
+            "portfolio_kind": "paper",
+            "position_id": "pos_short",
+            "symbol": "NVDA",
+            "quantity": "-3",
+            "market_value": "-303.00",
+            "unrealized_pnl": "-9.25",
+        },
+    )
+    performance = client.event(
+        "performance.snapshot.recorded",
+        run_id="run_reporting_signed",
+        payload={
+            "period_kind": "daily",
+            "period_start": "2026-06-07",
+            "period_end": "2026-06-07",
+            "session_date": "2026-06-07",
+            "trading_pnl_amount": "-9.25",
+            "trading_pnl_pct": "-0.92",
+            "compounded_return_pct": "-0.92",
+        },
+    )
+
+    assert position["payload"]["quantity"] == "-3"
+    assert performance["payload"]["trading_pnl_pct"] == "-0.92"
 
 
 def test_reporting_helpers_redact_sensitive_nested_fields(tmp_path: Path) -> None:

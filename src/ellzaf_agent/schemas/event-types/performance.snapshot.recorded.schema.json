@@ -2,6 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/performance.snapshot.recorded.schema.json",
   "title": "performance.snapshot.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nullableFiniteNumber": {
+      "anyOf": [{ "$ref": "#/$defs/finiteNumber" }, { "type": "null" }]
+    }
+  },
   "allOf": [
     { "$ref": "../event-envelope.schema.json" },
     {
@@ -16,18 +30,18 @@
             "period_start": { "type": "string", "format": "date" },
             "period_end": { "type": "string", "format": "date" },
             "session_date": { "type": "string", "format": "date" },
-            "raw_equity_change": { "type": ["number", "string", "null"] },
+            "raw_equity_change": { "$ref": "#/$defs/nullableFiniteNumber" },
             "flow_adjusted_equity_change": {
-              "type": ["number", "string", "null"]
+              "$ref": "#/$defs/nullableFiniteNumber"
             },
-            "trading_pnl_amount": { "type": ["number", "string", "null"] },
-            "trading_pnl_pct": { "type": ["number", "string", "null"] },
-            "net_pnl_amount": { "type": ["number", "string", "null"] },
-            "fees": { "type": ["number", "string", "null"] },
+            "trading_pnl_amount": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "trading_pnl_pct": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "net_pnl_amount": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "fees": { "$ref": "#/$defs/nullableFiniteNumber" },
             "fees_included": { "type": ["boolean", "null"] },
-            "return_base": { "type": ["number", "string", "null"] },
-            "compounded_return_pct": { "type": ["number", "string", "null"] },
-            "max_drawdown_pct": { "type": ["number", "string", "null"] }
+            "return_base": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "compounded_return_pct": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "max_drawdown_pct": { "$ref": "#/$defs/nullableFiniteNumber" }
           }
         }
       }

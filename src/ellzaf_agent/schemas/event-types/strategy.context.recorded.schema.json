@@ -2,6 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/strategy.context.recorded.schema.json",
   "title": "strategy.context.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nullableFiniteNumber": {
+      "anyOf": [{ "$ref": "#/$defs/finiteNumber" }, { "type": "null" }]
+    }
+  },
   "allOf": [
     { "$ref": "../event-envelope.schema.json" },
     {
@@ -20,12 +34,12 @@
             "entry_class": { "type": ["string", "null"] },
             "exit_class": { "type": ["string", "null"] },
             "planned_holding_period": { "type": ["string", "null"] },
-            "planned_risk_amount": { "type": ["number", "string", "null"] },
-            "planned_risk_pct": { "type": ["number", "string", "null"] },
-            "planned_reward_risk": { "type": ["number", "string", "null"] },
+            "planned_risk_amount": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "planned_risk_pct": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "planned_reward_risk": { "$ref": "#/$defs/nullableFiniteNumber" },
             "market_regime": { "type": ["string", "null"] },
             "volatility_regime": { "type": ["string", "null"] },
-            "source_confidence": { "type": ["number", "string", "null"] }
+            "source_confidence": { "$ref": "#/$defs/nullableFiniteNumber" }
           }
         }
       }

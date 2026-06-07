@@ -71,4 +71,7 @@ def strict_json_dumps(value: Any) -> str:
 
 
 def strict_json_loads(value: str) -> Any:
-    return json.loads(value)
+    def reject_constant(raw: str) -> None:
+        raise ValueError(f"invalid JSON constant: {raw}")
+
+    return json.loads(value, parse_constant=reject_constant)

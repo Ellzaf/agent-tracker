@@ -67,10 +67,12 @@ def test_cli_emit_reporting_sample_validate_and_show_readiness(
     assert main(["emit-sample", "--profile", "reporting", "--output", str(path)]) == 0
     assert main(["validate-jsonl", str(path), "--profile", "strict-reporting"]) == 0
     validated = json.loads(capsys.readouterr().out.splitlines()[-1])  # type: ignore[attr-defined]
+    assert validated["reporting_readiness"]["strict_reporting_ready"] is True
     assert validated["reporting_readiness"]["can_compute_flow_adjusted_pnl"] is True
 
     assert main(["reporting-readiness", str(path)]) == 0
     readiness = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert readiness["strict_reporting_ready"] is True
     assert readiness["missing_fields"] == []
     assert readiness["can_generate_repair_prompts"] is True
 

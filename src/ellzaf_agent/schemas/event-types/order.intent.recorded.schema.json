@@ -2,6 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ellzaf.com/schemas/ellzaf-agent/event-types/order.intent.recorded.schema.json",
   "title": "order.intent.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nullableFiniteNumber": {
+      "anyOf": [{ "$ref": "#/$defs/finiteNumber" }, { "type": "null" }]
+    }
+  },
   "allOf": [
     { "$ref": "../event-envelope.schema.json" },
     {
@@ -22,8 +36,8 @@
             "decision_id": { "type": "string", "minLength": 1 },
             "symbol": { "type": "string", "minLength": 1 },
             "side": { "enum": ["buy", "sell", "short", "cover"] },
-            "intended_quantity": { "type": ["number", "string"] },
-            "intended_price": { "type": ["number", "string", "null"] },
+            "intended_quantity": { "$ref": "#/$defs/finiteNumber" },
+            "intended_price": { "$ref": "#/$defs/nullableFiniteNumber" },
             "currency": { "type": ["string", "null"] },
             "open_close_effect": {
               "enum": ["open", "increase", "reduce", "close", "unknown", null]

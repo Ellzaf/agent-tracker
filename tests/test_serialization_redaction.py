@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from ellzaf_agent.redaction import REDACTION_TEXT, redact_payload
-from ellzaf_agent.serialization import strict_json_dumps, to_jsonable
+from ellzaf_agent.serialization import strict_json_dumps, strict_json_loads, to_jsonable
 
 
 class Side(Enum):
@@ -47,6 +47,12 @@ def test_to_jsonable_handles_common_edge_values() -> None:
     assert jsonable["nan"] is None
     assert jsonable["inf"] is None
     assert strict_json_dumps(jsonable)
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_strict_json_loads_rejects_non_json_constants(constant: str) -> None:
+    with pytest.raises(ValueError, match="invalid JSON constant"):
+        strict_json_loads(f'{{"value": {constant}}}')
 
 
 def test_redaction_hashes_prompt_and_output_by_default() -> None:
