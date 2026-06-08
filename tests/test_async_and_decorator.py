@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 from pathlib import Path
 
@@ -60,3 +61,36 @@ def test_trace_decorator_records_async_function(tmp_path: Path) -> None:
 
     assert asyncio.run(build_plan(4)) == 5
     assert read_pending(tmp_path)[-1]["event_type"] == "agent.run.completed"
+
+
+def test_trace_decorator_flush_after_drains_after_completion(tmp_path: Path) -> None:
+    uploaded_types: list[str] = []
+
+    def transport(
+        _url: str, _headers: dict[str, str], body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        payload = json.loads(gzip.decompress(body).decode("utf-8"))
+        uploaded_types.extend(event["event_type"] for event in payload["events"])
+        return (
+            200,
+            json.dumps(
+                {
+                    "accepted": len(payload["events"]),
+                    "duplicates": 0,
+                    "rejected": [],
+                }
+            ).encode("utf-8"),
+        )
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+
+    @client.trace(run_type="session_homework", flush_after=True)
+    def build_plan(value: int) -> int:
+        return value + 1
+
+    assert build_plan(2) == 3
+    assert uploaded_types == ["agent.run.started", "agent.run.completed"]
+    assert read_pending(tmp_path) == []

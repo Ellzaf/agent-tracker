@@ -126,6 +126,7 @@ def test_redaction_preserves_existing_redacted_hashes() -> None:
         "api_key=abcdef1234567890",
         "Authorization: Bearer abcdefghijklmnop",
         "sk-live123456789012345",
+        "ellzaf_trk_mEwmt6sY0vVFHE8vOPWCkLKnzfyGFnQgLZo1B7qM",
         "ghp_abcdefghijklmnopqrstuvwxyz",
         "/home/user/private/project/file.py",
         r"C:\\Users\\name\\secret.txt",
@@ -135,3 +136,25 @@ def test_redaction_secret_matrix(secret: str) -> None:
     result = redact_payload({"message": f"tool failed: {secret}"}, store_full_io=True)
     assert secret not in result.value["message"]
     assert REDACTION_TEXT in result.value["message"]
+
+
+def test_redaction_scrubs_tracker_key_nested_in_tool_output() -> None:
+    key = "ellzaf_trk_mEwmt6sY0vVFHE8vOPWCkLKnzfyGFnQgLZo1B7qM"
+
+    result = redact_payload(
+        {
+            "tool": {
+                "output": {
+                    "lines": [
+                        f"configured key {key}",
+                        {"nested": f"Bearer {key}"},
+                    ]
+                }
+            }
+        },
+        store_full_io=True,
+    )
+
+    text = repr(result.value)
+    assert key not in text
+    assert REDACTION_TEXT in text

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import inspect
 import time
 from collections.abc import Callable, Mapping
+from datetime import UTC, date, datetime
 from typing import Any, ParamSpec, TypeVar
 
 from agent_tracker.config import Config
@@ -41,6 +43,10 @@ class AgentTracker:
                 config.queue_dir, max_queue_bytes=config.max_queue_bytes
             )
         self.uploader = uploader or BatchUploader(config, transport=transport)
+        self._events_by_run: dict[str, int] = {}
+        self._events_today = 0
+        self._event_day: date | None = None
+        self._budget_warning_emitted = False
 
     @classmethod
     def from_env(
@@ -67,6 +73,7 @@ class AgentTracker:
         event_id: str | None = None,
         occurred_at: str | None = None,
         store_full_io: bool | None = None,
+        _bypass_budget: bool = False,
     ) -> dict[str, Any]:
         resolved_run_id = run_id or new_run()
         normalized_payload = _payload_with_defaults(event_type, payload)
@@ -90,8 +97,42 @@ class AgentTracker:
             else store_full_io,
         ).value
         validate_event(redacted, max_event_bytes=self.config.max_event_bytes)
-        if self.config.telemetry_enabled and self.queue is not None:
+        should_enqueue = (
+            self.config.telemetry_enabled
+            and self.queue is not None
+            and (
+                _bypass_budget
+                or (
+                    self._should_capture(redacted)
+                    and self._within_event_budgets(redacted)
+                )
+            )
+        )
+        if should_enqueue:
             self.queue.enqueue(redacted)
+            self._record_captured_event(redacted)
+        elif (
+            self.config.telemetry_enabled
+            and self.queue is not None
+            and not _bypass_budget
+            and not self._budget_warning_emitted
+            and self._budget_exhausted(redacted)
+        ):
+            self._budget_warning_emitted = True
+            self.event(
+                "error.recorded",
+                run_id=resolved_run_id,
+                payload={
+                    "error_kind": "telemetry_budget_exhausted",
+                    "message": "local telemetry event budget exhausted",
+                    "component": "cost",
+                    "severity": "warning",
+                    "resolution_status": "open",
+                    "next_safe_action": "observe",
+                    "dropped_event_type": event_type,
+                },
+                _bypass_budget=True,
+            )
         return redacted
 
     def run(
@@ -124,6 +165,7 @@ class AgentTracker:
         symbols: list[str] | tuple[str, ...] | None = None,
         metadata: Mapping[str, Any] | None = None,
         store_full_io: bool | None = None,
+        flush_after: bool = False,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             if inspect.iscoroutinefunction(func):
@@ -135,13 +177,17 @@ class AgentTracker:
                         "input_hash": hash_text(repr((args, kwargs))),
                     }
                     merged_metadata = {**dict(metadata or {}), **call_metadata}
-                    async with self.arun(
-                        run_type=run_type,
-                        symbols=symbols,
-                        metadata=merged_metadata,
-                        store_full_io=store_full_io,
-                    ):
-                        return await func(*args, **kwargs)
+                    try:
+                        async with self.arun(
+                            run_type=run_type,
+                            symbols=symbols,
+                            metadata=merged_metadata,
+                            store_full_io=store_full_io,
+                        ):
+                            return await func(*args, **kwargs)
+                    finally:
+                        if flush_after:
+                            await self.aflush_all()
 
                 return async_wrapper  # type: ignore[return-value]
 
@@ -152,24 +198,48 @@ class AgentTracker:
                     "input_hash": hash_text(repr((args, kwargs))),
                 }
                 merged_metadata = {**dict(metadata or {}), **call_metadata}
-                with self.run(
-                    run_type=run_type,
-                    symbols=symbols,
-                    metadata=merged_metadata,
-                    store_full_io=store_full_io,
-                ):
-                    return func(*args, **kwargs)
+                try:
+                    with self.run(
+                        run_type=run_type,
+                        symbols=symbols,
+                        metadata=merged_metadata,
+                        store_full_io=store_full_io,
+                    ):
+                        return func(*args, **kwargs)
+                finally:
+                    if flush_after:
+                        self.flush_all()
 
             return wrapper
 
         return decorator
 
-    def flush(self) -> FlushSummary:
+    def flush(
+        self,
+        *,
+        dry_run: bool = False,
+        raise_on_error: bool = False,
+    ) -> FlushSummary:
         if self.queue is None:
-            return FlushSummary(0, 0, 0, 0, 0, skipped=True)
+            return FlushSummary(
+                0,
+                0,
+                0,
+                0,
+                0,
+                skipped=True,
+                status="skipped",
+                reason_code="queue_disabled",
+                message="local queue is disabled",
+                dry_run=dry_run,
+            )
         try:
-            return self.uploader.flush(self.queue)
-        except Exception:
+            return self.uploader.flush(
+                self.queue, dry_run=dry_run, raise_on_error=raise_on_error
+            )
+        except Exception as exc:
+            if raise_on_error:
+                raise
             pending = self.queue.health().pending
             return FlushSummary(
                 attempted=pending,
@@ -177,15 +247,153 @@ class AgentTracker:
                 duplicates=0,
                 rejected=0,
                 retryable=pending,
+                status="retryable_failed",
+                reason_code="unexpected_flush_error",
+                message=str(exc) or type(exc).__name__,
+                dry_run=dry_run,
             )
 
     async def aflush(self) -> FlushSummary:
         return await asyncio.to_thread(self.flush)
 
+    def flush_all(
+        self,
+        *,
+        max_batches: int | None = None,
+        dry_run: bool = False,
+        raise_on_error: bool = False,
+    ) -> FlushSummary:
+        if self.queue is None:
+            return FlushSummary(
+                0,
+                0,
+                0,
+                0,
+                0,
+                skipped=True,
+                status="skipped",
+                reason_code="queue_disabled",
+                message="local queue is disabled",
+                dry_run=dry_run,
+            )
+        try:
+            return self.uploader.flush_all(
+                self.queue,
+                max_batches=max_batches,
+                dry_run=dry_run,
+                raise_on_error=raise_on_error,
+            )
+        except Exception as exc:
+            if raise_on_error:
+                raise
+            pending = self.queue.health().pending
+            return FlushSummary(
+                attempted=pending,
+                accepted=0,
+                duplicates=0,
+                rejected=0,
+                retryable=pending,
+                status="retryable_failed",
+                reason_code="unexpected_flush_error",
+                message=str(exc) or type(exc).__name__,
+                dry_run=dry_run,
+            )
+
+    async def aflush_all(
+        self,
+        *,
+        max_batches: int | None = None,
+        dry_run: bool = False,
+        raise_on_error: bool = False,
+    ) -> FlushSummary:
+        return await asyncio.to_thread(
+            self.flush_all,
+            max_batches=max_batches,
+            dry_run=dry_run,
+            raise_on_error=raise_on_error,
+        )
+
+    def close(self, *, timeout_seconds: float | None = None) -> FlushSummary:
+        del timeout_seconds
+        return self.flush_all()
+
     def queue_health(self) -> QueueHealth | None:
         if self.queue is None:
             return None
         return self.queue.health()
+
+    def _should_capture(self, event: Mapping[str, Any]) -> bool:
+        event_type = str(event.get("event_type", ""))
+        payload = event.get("payload")
+        payload_map = payload if isinstance(payload, Mapping) else {}
+        if event_type in {
+            "agent.run.started",
+            "agent.run.completed",
+            "trade.rejected",
+            "paper.fill.recorded",
+            "position.snapshot.recorded",
+            "portfolio.snapshot.recorded",
+            "capital.flow.recorded",
+            "performance.snapshot.recorded",
+            "replay.result.recorded",
+        }:
+            return True
+        if self.config.always_capture_errors and event_type == "error.recorded":
+            return True
+        if (
+            self.config.always_capture_risk_blocks
+            and event_type == "risk.check.completed"
+            and payload_map.get("approved") is False
+        ):
+            return True
+        if self.config.sample_rate >= 1:
+            return True
+        if self.config.sample_rate <= 0:
+            return False
+        seed = str(event.get("idempotency_key") or event.get("event_id") or "")
+        value = int(hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16], 16)
+        return (value / 0xFFFFFFFFFFFFFFFF) < self.config.sample_rate
+
+    def _within_event_budgets(self, event: Mapping[str, Any]) -> bool:
+        self._reset_event_day_if_needed()
+        if (
+            self.config.max_events_per_day is not None
+            and self._events_today >= self.config.max_events_per_day
+        ):
+            return False
+        run_id = str(event.get("run_id") or "")
+        return not (
+            self.config.max_events_per_run is not None
+            and self._events_by_run.get(run_id, 0) >= self.config.max_events_per_run
+        )
+
+    def _budget_exhausted(self, event: Mapping[str, Any]) -> bool:
+        del event
+        self._reset_event_day_if_needed()
+        return (
+            self.config.max_events_per_day is not None
+            and self._events_today >= self.config.max_events_per_day
+        ) or (
+            self.config.max_events_per_run is not None
+            and any(
+                count >= self.config.max_events_per_run
+                for count in self._events_by_run.values()
+            )
+        )
+
+    def _record_captured_event(self, event: Mapping[str, Any]) -> None:
+        self._reset_event_day_if_needed()
+        self._events_today += 1
+        run_id = str(event.get("run_id") or "")
+        self._events_by_run[run_id] = self._events_by_run.get(run_id, 0) + 1
+
+    def _reset_event_day_if_needed(self) -> None:
+        today = datetime.now(UTC).date()
+        if self._event_day != today:
+            self._event_day = today
+            self._events_today = 0
+            self._events_by_run.clear()
+            self._budget_warning_emitted = False
 
 
 class Run:

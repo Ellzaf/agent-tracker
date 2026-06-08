@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from agent_tracker.adapters.aitrade import AitradeExporter
 from agent_tracker.client import AgentTracker
+from agent_tracker.config import Config
 from agent_tracker.constants import DEFAULT_MAX_QUEUE_BYTES, DEFAULT_QUEUE_DIR
 from agent_tracker.doctor import doctor_repo, format_doctor_report
 from agent_tracker.errors import AgentTrackerError
@@ -82,7 +84,26 @@ def _parser() -> argparse.ArgumentParser:
     flush.add_argument("--project")
     flush.add_argument("--environment")
     flush.add_argument("--agent-id")
+    flush.add_argument("--drain", action="store_true")
+    flush.add_argument("--dry-run", action="store_true")
+    flush.add_argument("--max-batches", type=int)
+    flush.add_argument("--fail-fast", action="store_true")
     flush.set_defaults(func=_cmd_flush)
+
+    doctor_upload = subparsers.add_parser(
+        "doctor-upload",
+        help="check upload configuration with an isolated diagnostic event",
+    )
+    doctor_upload.add_argument("--project")
+    doctor_upload.add_argument("--environment")
+    doctor_upload.add_argument("--agent-id")
+    doctor_upload.add_argument(
+        "--live",
+        action="store_true",
+        help="upload the diagnostic batch instead of only preparing it",
+    )
+    doctor_upload.add_argument("--fail-fast", action="store_true")
+    doctor_upload.set_defaults(func=_cmd_doctor_upload)
 
     sample = subparsers.add_parser("emit-sample", help="emit bundled sample events")
     sample.add_argument("--profile", choices=["ebook", "reporting"], default="ebook")
@@ -127,6 +148,12 @@ def _cmd_init(args: argparse.Namespace) -> int:
                 'ELLZAF_QUEUE_DIR=".ellzaf/queue"',
                 'ELLZAF_TELEMETRY_ENABLED="true"',
                 'ELLZAF_STORE_FULL_IO="false"',
+                'ELLZAF_GZIP="true"',
+                'ELLZAF_SAMPLE_RATE="1.0"',
+                "# Optional local safety limits. Leave blank unless needed.",
+                'ELLZAF_MAX_EVENTS_PER_RUN=""',
+                'ELLZAF_MAX_EVENTS_PER_DAY=""',
+                'ELLZAF_MAX_UPLOAD_BYTES_PER_DAY=""',
                 "",
             ]
         ),
@@ -170,7 +197,57 @@ def _cmd_flush(args: argparse.Namespace) -> int:
         environment=args.environment,
         agent_id=args.agent_id,
     )
-    print(strict_json_dumps(asdict(client.flush())))
+    if args.drain:
+        summary = client.flush_all(
+            max_batches=args.max_batches,
+            dry_run=args.dry_run,
+            raise_on_error=args.fail_fast,
+        )
+    else:
+        summary = client.flush(
+            dry_run=args.dry_run,
+            raise_on_error=args.fail_fast,
+        )
+    print(strict_json_dumps(asdict(summary)))
+    return 0
+
+
+def _cmd_doctor_upload(args: argparse.Namespace) -> int:
+    base_config = Config.from_env(
+        project=args.project,
+        environment=args.environment,
+        agent_id=args.agent_id,
+    )
+    with TemporaryDirectory(prefix="agent-tracker-doctor-") as tmp:
+        client = AgentTracker(
+            replace(base_config, queue_dir=Path(tmp), agent_id=base_config.agent_id)
+        )
+        with client.run(
+            run_type="agent_tracker_doctor_upload",
+            trigger="cli",
+            metadata={"diagnostic": True},
+        ) as run:
+            run.cost_usage(
+                provider="agent-tracker",
+                usage_kind="diagnostic_event",
+                quantity=1,
+                component="upload",
+                severity="info",
+            )
+        summary = client.flush(
+            dry_run=not args.live,
+            raise_on_error=args.fail_fast,
+        )
+    result = {
+        "endpoint": f"{base_config.endpoint}/v1/events/batch",
+        "project": base_config.project,
+        "agent_id": base_config.agent_id,
+        "environment": base_config.environment,
+        "gzip": base_config.gzip_enabled,
+        "live": args.live,
+        "summary": asdict(summary),
+    }
+    print(strict_json_dumps(result))
     return 0
 
 

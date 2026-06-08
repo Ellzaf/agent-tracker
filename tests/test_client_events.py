@@ -182,3 +182,69 @@ def test_final_action_completes_only_once(tmp_path: Path) -> None:
     ]
     assert len(completions) == 1
     assert completions[0]["payload"]["final_action"] == "no_order"
+
+
+def test_sampling_keeps_errors_and_risk_blocks_when_rate_is_zero(
+    tmp_path: Path,
+) -> None:
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            telemetry_enabled=True,
+            sample_rate=0,
+            max_event_bytes=200_000,
+        )
+    )
+
+    client.event(
+        "tool.call.completed",
+        run_id="run_sample",
+        payload={"tool_name": "scanner", "status": "succeeded"},
+    )
+    client.event(
+        "risk.check.completed",
+        run_id="run_sample",
+        payload={"approved": False, "reasons": ["stale_market_data"]},
+    )
+    client.event(
+        "error.recorded",
+        run_id="run_sample",
+        payload={"error_kind": "timeout", "message": "provider timeout"},
+    )
+
+    event_types = [event["event_type"] for event in read_pending(tmp_path)]
+    assert event_types == ["risk.check.completed", "error.recorded"]
+
+
+def test_event_budget_drops_optional_events_and_records_warning(
+    tmp_path: Path,
+) -> None:
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            telemetry_enabled=True,
+            max_events_per_run=1,
+            max_event_bytes=200_000,
+        )
+    )
+
+    client.event(
+        "tool.call.completed",
+        run_id="run_budget",
+        payload={"tool_name": "scanner", "status": "succeeded"},
+    )
+    dropped = client.event(
+        "tool.call.completed",
+        run_id="run_budget",
+        payload={"tool_name": "scanner", "status": "succeeded"},
+    )
+
+    events = read_pending(tmp_path)
+    assert dropped["event_type"] == "tool.call.completed"
+    assert [event["event_type"] for event in events] == [
+        "tool.call.completed",
+        "error.recorded",
+    ]
+    assert events[-1]["payload"]["error_kind"] == "telemetry_budget_exhausted"

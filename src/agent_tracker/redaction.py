@@ -54,6 +54,7 @@ BROKER_PAYLOAD_KEYS = {
 ACCOUNT_KEY_HINTS = ("account", "account_id", "account_number", "broker_account")
 
 SECRET_PATTERNS = [
+    re.compile(r"\bellzaf_trk_[A-Za-z0-9]{12,}\b"),
     re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"),
     re.compile(r"(?i)\b(api[_-]?key|secret|password|token)\s*[:=]\s*[^\s,;]{6,}"),
     re.compile(r"\bsk-(?:live|test|proj)?[A-Za-z0-9_-]{12,}\b"),

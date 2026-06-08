@@ -17,6 +17,8 @@ def test_config_from_env_uses_safe_defaults(tmp_path: Path) -> None:
     assert config.queue_dir == tmp_path
     assert config.telemetry_enabled is True
     assert config.store_full_io is False
+    assert config.gzip_enabled is True
+    assert config.sample_rate == 1.0
 
 
 def test_config_rejects_invalid_environment() -> None:
@@ -66,6 +68,10 @@ def test_config_rejects_bad_boolean() -> None:
         {"ELLZAF_MAX_BATCH_EVENTS": "1.5"},
         {"ELLZAF_FLUSH_INTERVAL_SECONDS": "soon"},
         {"ELLZAF_HTTP_TIMEOUT_SECONDS": "fast"},
+        {"ELLZAF_SAMPLE_RATE": "often"},
+        {"ELLZAF_MAX_EVENTS_PER_RUN": "many"},
+        {"ELLZAF_MAX_EVENTS_PER_DAY": "many"},
+        {"ELLZAF_MAX_UPLOAD_BYTES_PER_DAY": "large"},
     ],
 )
 def test_config_from_env_rejects_malformed_numeric_values(
@@ -85,6 +91,11 @@ def test_config_from_env_rejects_malformed_numeric_values(
         {"max_event_bytes": 4096, "max_batch_bytes": 2048},
         {"flush_interval_seconds": -0.1},
         {"http_timeout_seconds": 0},
+        {"sample_rate": -0.1},
+        {"sample_rate": 1.1},
+        {"max_events_per_run": 0},
+        {"max_events_per_day": 0},
+        {"max_upload_bytes_per_day": 1023},
     ],
 )
 def test_config_rejects_invalid_direct_numeric_limits(
@@ -92,3 +103,27 @@ def test_config_rejects_invalid_direct_numeric_limits(
 ) -> None:
     with pytest.raises(ConfigError):
         Config(project="paper-agent", **kwargs)
+
+
+def test_config_reads_upload_sampling_and_budget_env(tmp_path: Path) -> None:
+    config = Config.from_env(
+        project="paper-agent",
+        env={
+            "ELLZAF_QUEUE_DIR": str(tmp_path),
+            "ELLZAF_GZIP": "false",
+            "ELLZAF_SAMPLE_RATE": "0.25",
+            "ELLZAF_ALWAYS_CAPTURE_ERRORS": "false",
+            "ELLZAF_ALWAYS_CAPTURE_RISK_BLOCKS": "false",
+            "ELLZAF_MAX_EVENTS_PER_RUN": "5",
+            "ELLZAF_MAX_EVENTS_PER_DAY": "10",
+            "ELLZAF_MAX_UPLOAD_BYTES_PER_DAY": "2048",
+        },
+    )
+
+    assert config.gzip_enabled is False
+    assert config.sample_rate == 0.25
+    assert config.always_capture_errors is False
+    assert config.always_capture_risk_blocks is False
+    assert config.max_events_per_run == 5
+    assert config.max_events_per_day == 10
+    assert config.max_upload_bytes_per_day == 2048

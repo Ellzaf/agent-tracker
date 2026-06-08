@@ -268,3 +268,250 @@ def test_missing_api_key_skips_upload_but_keeps_local_jsonl(tmp_path: Path) -> N
 
     assert summary.skipped is True
     assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
+def test_flush_all_drains_multiple_batches(tmp_path: Path) -> None:
+    batch_sizes: list[int] = []
+
+    def transport(
+        _url: str, _headers: dict[str, str], body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        payload = json.loads(gzip.decompress(body).decode("utf-8"))
+        batch_size = len(payload["events"])
+        batch_sizes.append(batch_size)
+        return (
+            200,
+            json.dumps(
+                {"accepted": batch_size, "duplicates": 0, "rejected": []}
+            ).encode("utf-8"),
+        )
+
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            api_key="project-key",
+            max_batch_events=2,
+        ),
+        transport=transport,
+    )
+    for index in range(5):
+        client.event(
+            "risk.check.completed",
+            run_id=f"run_drain_{index}",
+            payload={"approved": True},
+        )
+
+    summary = client.flush_all()
+
+    assert summary.attempted == 5
+    assert summary.accepted == 5
+    assert summary.batch_count == 3
+    assert summary.stopped is True
+    assert summary.stop_reason == "queue_empty"
+    assert batch_sizes == [2, 2, 1]
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 0
+    assert len(list((tmp_path / "uploaded").glob("*.jsonl"))) == 5
+
+
+def test_flush_all_stops_on_retryable_rejection(tmp_path: Path) -> None:
+    calls = 0
+
+    def transport(
+        _url: str, _headers: dict[str, str], body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        nonlocal calls
+        calls += 1
+        payload = json.loads(gzip.decompress(body).decode("utf-8"))
+        rejected = payload["events"][0]["event_id"]
+        return (
+            200,
+            json.dumps(
+                {
+                    "accepted": 0,
+                    "duplicates": 0,
+                    "rejected": [
+                        {
+                            "event_id": rejected,
+                            "code": "temporary_limit",
+                            "message": "retry later",
+                            "retryable": True,
+                        }
+                    ],
+                }
+            ).encode("utf-8"),
+        )
+
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            api_key="project-key",
+            max_batch_events=1,
+        ),
+        transport=transport,
+    )
+    client.event(
+        "risk.check.completed", run_id="run_retry_1", payload={"approved": True}
+    )
+    client.event(
+        "risk.check.completed", run_id="run_retry_2", payload={"approved": True}
+    )
+
+    summary = client.flush_all()
+
+    assert calls == 1
+    assert summary.retryable == 1
+    assert summary.retryable_rejections == 1
+    assert summary.stop_reason == "retryable_pending"
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 2
+
+
+def test_flush_dry_run_prepares_batch_without_transport_or_file_moves(
+    tmp_path: Path,
+) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        raise AssertionError("dry run must not call transport")
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event("risk.check.completed", run_id="run_dry", payload={"approved": True})
+
+    summary = client.flush(dry_run=True)
+
+    assert summary.dry_run is True
+    assert summary.skipped is True
+    assert summary.reason_code == "dry_run"
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+    assert len(list((tmp_path / "uploaded").glob("*.jsonl"))) == 0
+
+
+def test_flush_reports_authorization_failure_as_permanent(
+    tmp_path: Path,
+) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        return 401, b'{"error":"bad key"}'
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event("risk.check.completed", run_id="run_auth", payload={"approved": True})
+
+    summary = client.flush()
+
+    assert summary.status == "permanent_failed"
+    assert summary.reason_code == "authorization_failed"
+    assert summary.retryable == 0
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
+def test_flush_can_disable_gzip(tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def transport(
+        _url: str, headers: dict[str, str], body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        captured["headers"] = headers
+        captured["payload"] = json.loads(body.decode("utf-8"))
+        return 200, b'{"accepted":1,"duplicates":0,"rejected":[]}'
+
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            api_key="project-key",
+            gzip_enabled=False,
+        ),
+        transport=transport,
+    )
+    client.event("risk.check.completed", run_id="run_plain", payload={"approved": True})
+
+    summary = client.flush()
+
+    assert summary.accepted == 1
+    assert "Content-Encoding" not in captured["headers"]  # type: ignore[operator]
+    assert len(captured["payload"]["events"]) == 1  # type: ignore[index]
+
+
+def test_upload_byte_budget_keeps_events_pending(tmp_path: Path) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        raise AssertionError("budget exhaustion must stop before transport")
+
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            api_key="project-key",
+            gzip_enabled=False,
+            max_event_bytes=4_096,
+            max_batch_bytes=4_096,
+            max_upload_bytes_per_day=1_024,
+        ),
+        transport=transport,
+    )
+    client.event(
+        "tool.call.completed",
+        run_id="run_budget",
+        payload={"tool_name": "scanner", "status": "succeeded", "summary": "x" * 1300},
+    )
+
+    summary = client.flush()
+
+    assert summary.status == "retryable_failed"
+    assert summary.reason_code == "upload_byte_budget_exhausted"
+    assert summary.retryable == 1
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
+def test_duplicate_rejected_event_ids_keep_batch_pending(tmp_path: Path) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        payload = json.loads(gzip.decompress(body).decode("utf-8"))
+        event_id = payload["events"][0]["event_id"]
+        return (
+            200,
+            json.dumps(
+                {
+                    "accepted": 0,
+                    "duplicates": 0,
+                    "rejected": [
+                        {
+                            "event_id": event_id,
+                            "code": "bad",
+                            "message": "bad",
+                            "retryable": False,
+                        },
+                        {
+                            "event_id": event_id,
+                            "code": "bad",
+                            "message": "bad",
+                            "retryable": False,
+                        },
+                    ],
+                }
+            ).encode("utf-8"),
+        )
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event(
+        "risk.check.completed", run_id="run_dupe_rej", payload={"approved": True}
+    )
+
+    summary = client.flush()
+
+    assert summary.reason_code == "response_count_mismatch"
+    assert summary.retryable == 1
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1

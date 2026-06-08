@@ -59,6 +59,49 @@ def test_cli_print_prompt_emit_sample_and_validate(
     assert main(["validate-jsonl", str(path), "--strict-mistakes"]) == 0
 
 
+def test_cli_doctor_upload_dry_run_reports_endpoint(
+    tmp_path: Path,
+    capsys: object,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELLZAF_PROJECT", "paper-agent")
+    monkeypatch.setenv("ELLZAF_API_KEY", "ellzaf_trk_testkey123456789")
+    monkeypatch.setenv("ELLZAF_QUEUE_DIR", str(tmp_path / "queue"))
+
+    assert main(["doctor-upload"]) == 0
+
+    output = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert output["endpoint"] == "https://ellzaf.com/v1/events/batch"
+    assert output["summary"]["dry_run"] is True
+    assert output["summary"]["reason_code"] == "dry_run"
+
+
+def test_cli_flush_dry_run_does_not_move_queue_files(
+    tmp_path: Path,
+    capsys: object,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELLZAF_PROJECT", "paper-agent")
+    monkeypatch.setenv("ELLZAF_API_KEY", "ellzaf_trk_testkey123456789")
+    monkeypatch.setenv("ELLZAF_QUEUE_DIR", str(tmp_path / "queue"))
+
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path / "queue",
+            api_key="ellzaf_trk_testkey123456789",
+        )
+    )
+    client.event("risk.check.completed", run_id="run_cli", payload={"approved": True})
+
+    assert main(["flush", "--dry-run", "--drain"]) == 0
+
+    output = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert output["dry_run"] is True
+    assert output["stop_reason"] == "dry_run"
+    assert len(list((tmp_path / "queue" / "pending").glob("*.jsonl"))) == 1
+
+
 def test_cli_emit_reporting_sample_validate_and_show_readiness(
     tmp_path: Path, capsys: object
 ) -> None:

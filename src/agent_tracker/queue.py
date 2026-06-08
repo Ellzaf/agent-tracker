@@ -28,6 +28,13 @@ class QueueHealth:
     quarantined: int
     pending_bytes: int
     max_queue_bytes: int
+    uploaded_bytes: int = 0
+    failed_bytes: int = 0
+    quarantined_bytes: int = 0
+    oldest_pending_age_seconds: float | None = None
+    newest_pending_age_seconds: float | None = None
+    retryable_failed: int = 0
+    permanent_failed: int = 0
 
 
 class LocalQueue:
@@ -109,13 +116,29 @@ class LocalQueue:
 
     def health(self) -> QueueHealth:
         pending_files = list(self.pending_dir.glob("*.jsonl"))
+        uploaded_files = list(self.uploaded_dir.glob("*.jsonl*"))
+        failed_files = list(self.failed_dir.glob("*.jsonl*"))
+        quarantine_files = list(self.quarantine_dir.glob("*.jsonl*"))
+        now = time.time()
+        pending_ages = [now - path.stat().st_mtime for path in pending_files]
         return QueueHealth(
             pending=len(pending_files),
-            uploaded=len(list(self.uploaded_dir.glob("*.jsonl*"))),
-            failed=len(list(self.failed_dir.glob("*.jsonl*"))),
-            quarantined=len(list(self.quarantine_dir.glob("*.jsonl*"))),
+            uploaded=len(uploaded_files),
+            failed=len(failed_files),
+            quarantined=len(quarantine_files),
             pending_bytes=sum(path.stat().st_size for path in pending_files),
             max_queue_bytes=self.max_queue_bytes,
+            uploaded_bytes=sum(path.stat().st_size for path in uploaded_files),
+            failed_bytes=sum(path.stat().st_size for path in failed_files),
+            quarantined_bytes=sum(path.stat().st_size for path in quarantine_files),
+            oldest_pending_age_seconds=max(pending_ages) if pending_ages else None,
+            newest_pending_age_seconds=min(pending_ages) if pending_ages else None,
+            retryable_failed=len(
+                [path for path in failed_files if ".retryable" in path.name]
+            ),
+            permanent_failed=len(
+                [path for path in failed_files if ".permanent" in path.name]
+            ),
         )
 
     def _move(self, path: Path, target_dir: Path, *, suffix: str = "") -> None:

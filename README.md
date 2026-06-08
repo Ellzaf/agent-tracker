@@ -119,10 +119,13 @@ Common optional settings:
 export ELLZAF_QUEUE_DIR=".ellzaf/queue"
 export ELLZAF_TELEMETRY_ENABLED="true"
 export ELLZAF_STORE_FULL_IO="false"
+export ELLZAF_GZIP="true"
+export ELLZAF_SAMPLE_RATE="1.0"
 ```
 
-The default upload endpoint is `https://ellzaf.com/v1/events/batch`. Only set
-`ELLZAF_ENDPOINT` if Ellzaf support gives you a different base URL.
+The default base endpoint is `https://ellzaf.com`. The SDK uploads batches to
+`https://ellzaf.com/v1/events/batch`. Only set `ELLZAF_ENDPOINT` if Ellzaf
+support gives you a different base URL.
 
 Supported environments:
 
@@ -134,6 +137,18 @@ Supported environments:
 
 Keep `ELLZAF_STORE_FULL_IO=false` unless you want to store prompt and model
 output text. The default sends hashes and character counts instead.
+
+Optional local volume controls:
+
+```bash
+export ELLZAF_MAX_EVENTS_PER_RUN=""
+export ELLZAF_MAX_EVENTS_PER_DAY=""
+export ELLZAF_MAX_UPLOAD_BYTES_PER_DAY=""
+```
+
+Leave these blank unless your agent is high volume. Errors, failed risk checks,
+rejected trades, fills, portfolio snapshots, performance snapshots, and replay
+results are preserved by default even when sampling is enabled.
 
 ## Quick Start
 
@@ -198,7 +213,19 @@ with tracker.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as r
 
     run.final_action(action="no_order", reason="risk_gate_rejected")
 
-tracker.flush()
+tracker.flush_all()
+```
+
+For a smaller transition, wrap one function and let the SDK flush after the run:
+
+```python
+from agent_tracker import AgentTracker
+
+tracker = AgentTracker.from_env()
+
+@tracker.trace(run_type="portfolio_allocation", flush_after=True)
+def run_agent() -> None:
+    ...
 ```
 
 ## Add Trading Stats
@@ -368,20 +395,42 @@ The SDK does not call brokers, read broker quotes, or create orders.
 ## Queue And Upload
 
 The SDK writes one event per JSONL file under `.ellzaf/queue` by default.
-`flush()` uploads a batch to Ellzaf with gzip and bearer-token authentication.
+`flush()` uploads one batch to Ellzaf with gzip and bearer-token
+authentication. `flush_all()` drains the queue until it is empty, skipped, or a
+retryable error needs a later attempt.
 
 ```python
 summary = tracker.flush()
+summary = tracker.flush_all()
 
 print(summary.attempted)
 print(summary.accepted)
 print(summary.rejected)
 print(summary.retryable)
+print(summary.reason_code)
+print(summary.stop_reason)
 ```
 
 If the API key is missing, `flush()` leaves events in the local queue and
 returns a skipped summary. If Ellzaf returns a retryable error, the SDK keeps
 the event pending for a later flush.
+
+Check upload configuration without moving queue files:
+
+```bash
+agent-tracker flush --dry-run
+agent-tracker flush --drain --dry-run
+```
+
+Run an isolated diagnostic check:
+
+```bash
+agent-tracker doctor-upload
+```
+
+By default `doctor-upload` prepares a diagnostic batch without using the
+network. Pass `--live` only when you want to send the diagnostic event to
+Ellzaf.
 
 Disable queue writes and uploads:
 
@@ -431,10 +480,14 @@ agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
 agent-tracker reporting-readiness ellzaf-reporting.jsonl
 agent-tracker queue-health
 agent-tracker flush
+agent-tracker flush --drain
+agent-tracker flush --dry-run
+agent-tracker doctor-upload
 ```
 
-Only `flush` uses the network. The other commands inspect local files, print
-package prompts, or validate JSONL.
+Only `flush` and `doctor-upload --live` use the network. The other commands
+inspect local files, print package prompts, validate JSONL, or prepare dry-run
+batches.
 
 ## Development
 
