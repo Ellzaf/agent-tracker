@@ -54,6 +54,10 @@ def test_cli_print_prompt_emit_sample_and_validate(
     output = capsys.readouterr().out  # type: ignore[attr-defined]
     assert "Integrate Ellzaf Agent Tracker" in output
 
+    assert main(["print-agent-prompt", "--profile", "custom"]) == 0
+    output = capsys.readouterr().out  # type: ignore[attr-defined]
+    assert "Integrate Agent Tracker Into A Custom Python Trading Agent" in output
+
     path = tmp_path / "sample.jsonl"
     assert main(["emit-sample", "--profile", "ebook", "--output", str(path)]) == 0
     assert main(["validate-jsonl", str(path), "--strict-mistakes"]) == 0
@@ -159,6 +163,25 @@ def test_doctor_repo_finds_ebook_style_surfaces(tmp_path: Path) -> None:
     assert coverage["source_collection"] == "implemented"
     assert coverage["risk_gate"] == "implemented"
     assert coverage["redaction"] == "implemented"
+
+
+def test_cli_doctor_repo_writes_coding_agent_plan(tmp_path: Path) -> None:
+    (tmp_path / "agent.py").write_text(
+        "prompt_hash = 'sha256:x'\nrisk_checks = []\n",
+        encoding="utf-8",
+    )
+    plan = tmp_path / "agent-tracker-plan.md"
+
+    assert (
+        main(["doctor-repo", "--path", str(tmp_path), "--write-plan", str(plan)])
+        == 0
+    )
+
+    text = plan.read_text(encoding="utf-8")
+    assert "Agent Tracker Integration Plan" in text
+    assert "Preserve trading behavior" in text
+    assert "Do not add broker execution" in text
+    assert "Doctor JSON" in text
 
 
 def test_emit_integration_report_uses_public_dataclasses(tmp_path: Path) -> None:

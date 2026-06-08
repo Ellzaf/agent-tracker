@@ -11,6 +11,7 @@ from agent_tracker.integration import (
     IntegrationSurface,
     SourceRef,
 )
+from agent_tracker.serialization import strict_json_dumps
 
 _TEXT_SUFFIXES = {
     "",
@@ -251,6 +252,90 @@ def format_doctor_report(report: AgentTrackerIntegrationReport) -> str:
         lines.extend(["", "Missing required surfaces:"])
         lines.extend(f"- {surface.name}" for surface in missing)
     return "\n".join(lines) + "\n"
+
+
+def format_doctor_plan(report: AgentTrackerIntegrationReport) -> str:
+    """Render a coding-agent integration plan from a doctor report."""
+
+    missing_required = report.missing_required()
+    lines = [
+        f"# Agent Tracker Integration Plan For {report.project}",
+        "",
+        "Use this plan with Codex, Claude Code, Cursor, or another coding agent.",
+        "",
+        "## Non-Negotiables",
+        "",
+        "- Preserve trading behavior.",
+        "- Do not add broker execution.",
+        "- Do not weaken deterministic risk gates.",
+        "- Do not upload raw prompts, raw model outputs, broker payloads, account "
+        "IDs, API keys, full local paths, raw chat IDs, or hidden reasoning.",
+        "- Add tests with uploads mocked.",
+        "- Validate emitted events before considering the integration done.",
+        "",
+        "## Detected Coverage",
+        "",
+    ]
+    for surface in report.surfaces:
+        refs = ", ".join(
+            ref.file or ref.table or ref.id or ""
+            for ref in surface.source_refs
+            if ref.file or ref.table or ref.id
+        )
+        required = "required" if surface.required else "optional"
+        suffix = f" Sources: {refs}." if refs else ""
+        lines.append(
+            f"- {surface.name}: {surface.coverage} ({required}). "
+            f"Emit `{surface.event_type}`.{suffix}"
+        )
+    lines.extend(["", "## Priority Work", ""])
+    if missing_required:
+        for surface in missing_required:
+            lines.append(
+                f"- Add telemetry for `{surface.name}` using "
+                f"`{surface.event_type}`."
+            )
+    else:
+        lines.append("- Required surfaces are present. Add stricter tests and gaps.")
+    lines.extend(
+        [
+            "",
+            "## Suggested Commands",
+            "",
+            "```bash",
+            "agent-tracker doctor-repo --path .",
+            "agent-tracker emit-sample --profile reporting \\",
+            "  --output ellzaf-reporting.jsonl",
+            "agent-tracker validate-jsonl ellzaf-reporting.jsonl \\",
+            "  --profile strict-reporting",
+            "agent-tracker queue-health",
+            "agent-tracker flush --dry-run",
+            "```",
+            "",
+            "## Copy-Paste Coding-Agent Prompt",
+            "",
+            "```text",
+            "Install Agent Tracker telemetry in this repository.",
+            "",
+            "Preserve trading behavior. Do not add broker execution. Do not weaken",
+            "risk gates. Do not upload raw prompts, raw model outputs, secrets,",
+            "broker payloads, account identifiers, full local paths, raw chat IDs,",
+            "or hidden reasoning.",
+            "",
+            "Use the doctor coverage below to instrument required surfaces first.",
+            "Add mocked-upload tests, disabled-telemetry tests, and JSONL validation.",
+            "Run the narrowest relevant test command and record the result.",
+            "```",
+            "",
+            "## Doctor JSON",
+            "",
+            "```json",
+            strict_json_dumps(report.to_dict()),
+            "```",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _read_repo_text(root: Path, *, max_files: int) -> Iterable[_DocFile]:

@@ -13,7 +13,7 @@ from agent_tracker.adapters.aitrade import AitradeExporter
 from agent_tracker.client import AgentTracker
 from agent_tracker.config import Config
 from agent_tracker.constants import DEFAULT_MAX_QUEUE_BYTES, DEFAULT_QUEUE_DIR
-from agent_tracker.doctor import doctor_repo, format_doctor_report
+from agent_tracker.doctor import doctor_repo, format_doctor_plan, format_doctor_report
 from agent_tracker.errors import AgentTrackerError
 from agent_tracker.queue import LocalQueue
 from agent_tracker.reporting import assess_reporting_readiness
@@ -28,6 +28,7 @@ from agent_tracker.testing import assert_valid_agent_tracker_events
 
 _PROMPT_PROFILES = {
     "ebook": "integrate-ebook-agent.md",
+    "custom": "integrate-custom-agent.md",
     "aitrade": "add-aitrade-adapter.md",
     "review": "review-agent-tracker-integration.md",
     "backend": "backend-contract-check.md",
@@ -113,6 +114,7 @@ def _parser() -> argparse.ArgumentParser:
     doctor = subparsers.add_parser("doctor-repo", help="inspect a repo for coverage")
     doctor.add_argument("--path", default=".")
     doctor.add_argument("--json", action="store_true")
+    doctor.add_argument("--write-plan")
     doctor.set_defaults(func=_cmd_doctor_repo)
 
     prompt = subparsers.add_parser("print-agent-prompt", help="print an agent prompt")
@@ -271,6 +273,8 @@ def _cmd_emit_sample(args: argparse.Namespace) -> int:
 
 def _cmd_doctor_repo(args: argparse.Namespace) -> int:
     report = doctor_repo(args.path)
+    if args.write_plan:
+        Path(args.write_plan).write_text(format_doctor_plan(report), encoding="utf-8")
     if args.json:
         print(strict_json_dumps(report.to_dict()))
     else:

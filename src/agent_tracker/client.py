@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import functools
 import hashlib
 import inspect
+import threading
 import time
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from typing import Any, ParamSpec, TypeVar
 
@@ -22,6 +25,16 @@ from agent_tracker.upload import BatchUploader, FlushSummary, Transport
 
 P = ParamSpec("P")
 R = TypeVar("R")
+SymbolsValue = list[str] | tuple[str, ...] | None
+SymbolsExtractor = Callable[[tuple[Any, ...], Mapping[str, Any], Any], SymbolsValue]
+SymbolsInput = SymbolsValue | SymbolsExtractor
+MetadataInput = (
+    Mapping[str, Any]
+    | Callable[[tuple[Any, ...], Mapping[str, Any], Any], Mapping[str, Any] | None]
+    | None
+)
+ResultHook = Callable[["Run", Any], None]
+ExceptionHook = Callable[["Run", BaseException], None]
 
 
 class AgentTracker:
@@ -47,6 +60,10 @@ class AgentTracker:
         self._events_today = 0
         self._event_day: date | None = None
         self._budget_warning_emitted = False
+        self._flush_lock = threading.RLock()
+        self._background_stop = threading.Event()
+        self._background_thread: threading.Thread | None = None
+        self._atexit_registered = False
 
     @classmethod
     def from_env(
@@ -162,57 +179,305 @@ class AgentTracker:
         self,
         *,
         run_type: str,
-        symbols: list[str] | tuple[str, ...] | None = None,
-        metadata: Mapping[str, Any] | None = None,
+        symbols: SymbolsInput = None,
+        metadata: MetadataInput = None,
         store_full_io: bool | None = None,
         flush_after: bool = False,
+        flush_mode: str = "sync",
+        on_result: ResultHook | None = None,
+        on_exception: ExceptionHook | None = None,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        if flush_mode not in {"sync", "thread", "never"}:
+            raise ValueError("flush_mode must be 'sync', 'thread', or 'never'")
+
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             if inspect.iscoroutinefunction(func):
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-                    call_metadata = {
-                        "function": func.__name__,
-                        "input_hash": hash_text(repr((args, kwargs))),
-                    }
-                    merged_metadata = {**dict(metadata or {}), **call_metadata}
+                    merged_metadata = _trace_metadata(
+                        func.__name__, args, kwargs, metadata
+                    )
+                    resolved_symbols = _trace_symbols(args, kwargs, symbols)
                     try:
                         async with self.arun(
                             run_type=run_type,
-                            symbols=symbols,
+                            symbols=resolved_symbols,
                             metadata=merged_metadata,
                             store_full_io=store_full_io,
-                        ):
-                            return await func(*args, **kwargs)
+                        ) as active_run:
+                            try:
+                                result = await func(*args, **kwargs)
+                            except BaseException as exc:
+                                _run_exception_hook(active_run, on_exception, exc)
+                                raise
+                            _run_result_hook(active_run, on_result, result)
+                            return result
                     finally:
                         if flush_after:
-                            await self.aflush_all()
+                            await self._flush_after_async(flush_mode)
 
                 return async_wrapper  # type: ignore[return-value]
 
             @functools.wraps(func)
             def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-                call_metadata = {
-                    "function": func.__name__,
-                    "input_hash": hash_text(repr((args, kwargs))),
-                }
-                merged_metadata = {**dict(metadata or {}), **call_metadata}
+                merged_metadata = _trace_metadata(func.__name__, args, kwargs, metadata)
+                resolved_symbols = _trace_symbols(args, kwargs, symbols)
                 try:
                     with self.run(
                         run_type=run_type,
-                        symbols=symbols,
+                        symbols=resolved_symbols,
                         metadata=merged_metadata,
                         store_full_io=store_full_io,
-                    ):
-                        return func(*args, **kwargs)
+                    ) as active_run:
+                        try:
+                            result = func(*args, **kwargs)
+                        except BaseException as exc:
+                            _run_exception_hook(active_run, on_exception, exc)
+                            raise
+                        _run_result_hook(active_run, on_result, result)
+                        return result
                 finally:
                     if flush_after:
-                        self.flush_all()
+                        self._flush_after(flush_mode)
 
             return wrapper
 
         return decorator
+
+    def wrap_agent(
+        self,
+        agent: Any,
+        *,
+        methods: list[str] | tuple[str, ...],
+        run_type: str,
+        symbols: SymbolsInput = None,
+        metadata: MetadataInput = None,
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Any:
+        originals = _agent_tracker_originals(agent)
+        for method_name in methods:
+            method = getattr(agent, method_name)
+            if getattr(method, "_agent_tracker_wrapped", False):
+                raise ValueError(f"{method_name} is already wrapped")
+            wrapped = self.trace(
+                run_type=run_type,
+                symbols=symbols,
+                metadata=metadata,
+                flush_after=flush_after,
+                flush_mode=flush_mode,
+            )(method)
+            wrapped._agent_tracker_wrapped = True  # type: ignore[attr-defined]
+            originals.setdefault(method_name, method)
+            setattr(agent, method_name, wrapped)
+        return agent
+
+    def wrap_tool_call(
+        self,
+        func: Callable[P, R],
+        *,
+        tool_name: Any,
+        status: Any = "succeeded",
+        run_type: str = "tool_call",
+        symbols: SymbolsInput = None,
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Callable[P, R]:
+        def record(run: Run, result: Any) -> None:
+            run.tool_call(
+                tool_name=str(_resolve_result_value(tool_name, result)),
+                status=str(_resolve_result_value(status, result)),
+            )
+
+        return self.trace(
+            run_type=run_type,
+            symbols=symbols,
+            on_result=record,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )(func)
+
+    def wrap_llm_call(
+        self,
+        func: Callable[P, R],
+        *,
+        provider: Any,
+        model: Any,
+        status: Any = "succeeded",
+        run_type: str = "llm_call",
+        symbols: SymbolsInput = None,
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Callable[P, R]:
+        def record(run: Run, result: Any) -> None:
+            run.llm_call(
+                provider=str(_resolve_result_value(provider, result)),
+                model=str(_resolve_result_value(model, result)),
+                status=str(_resolve_result_value(status, result)),
+            )
+
+        return self.trace(
+            run_type=run_type,
+            symbols=symbols,
+            on_result=record,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )(func)
+
+    def wrap_risk_gate(
+        self,
+        func: Callable[P, R],
+        *,
+        approved: Any,
+        reasons: Any = None,
+        risk_check_kind: str = "deterministic",
+        run_type: str = "risk_gate",
+        symbols: SymbolsInput = None,
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Callable[P, R]:
+        def record(run: Run, result: Any) -> None:
+            resolved_approved = bool(_resolve_result_value(approved, result))
+            payload: dict[str, Any] = {}
+            resolved_reasons = _resolve_result_value(reasons, result)
+            if resolved_reasons is not None:
+                payload["reasons"] = list(resolved_reasons)
+            run.risk_check(
+                risk_check_kind=risk_check_kind,
+                approved=resolved_approved,
+                **payload,
+            )
+
+        return self.trace(
+            run_type=run_type,
+            symbols=symbols,
+            on_result=record,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )(func)
+
+    def wrap_decision(
+        self,
+        func: Callable[P, R],
+        *,
+        decision_kind: Any,
+        action: Any,
+        symbol: Any = None,
+        run_type: str = "decision",
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Callable[P, R]:
+        def record(run: Run, result: Any) -> None:
+            payload: dict[str, Any] = {}
+            resolved_symbol = _resolve_result_value(symbol, result)
+            if resolved_symbol is not None:
+                payload["symbol"] = str(resolved_symbol)
+            run.decision_proposed(
+                decision_kind=str(_resolve_result_value(decision_kind, result)),
+                action=str(_resolve_result_value(action, result)),
+                **payload,
+            )
+
+        return self.trace(
+            run_type=run_type,
+            symbols=lambda _args, _kwargs, result: _symbol_list(
+                _resolve_result_value(symbol, result)
+            ),
+            on_result=record,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )(func)
+
+    def wrap_paper_broker(
+        self,
+        func: Callable[P, R],
+        *,
+        symbol: Any,
+        side: Any,
+        quantity: Any = None,
+        price: Any = None,
+        fill_id: Any = None,
+        run_type: str = "paper_fill",
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Callable[P, R]:
+        def record(run: Run, result: Any) -> None:
+            run.paper_fill(
+                symbol=str(_resolve_result_value(symbol, result)),
+                side=str(_resolve_result_value(side, result)),
+                quantity=_resolve_result_value(quantity, result),
+                price=_resolve_result_value(price, result),
+                fill_id=_resolve_result_value(fill_id, result),
+            )
+
+        return self.trace(
+            run_type=run_type,
+            symbols=lambda _args, _kwargs, result: _symbol_list(
+                _resolve_result_value(symbol, result)
+            ),
+            on_result=record,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )(func)
+
+    def wrap_replay_suite(
+        self,
+        func: Callable[P, R],
+        *,
+        suite_name: Any,
+        status: Any,
+        case_count: Any,
+        run_type: str = "replay",
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Callable[P, R]:
+        def record(run: Run, result: Any) -> None:
+            run.replay_result(
+                suite_name=str(_resolve_result_value(suite_name, result)),
+                status=str(_resolve_result_value(status, result)),
+                case_count=int(_resolve_result_value(case_count, result)),
+            )
+
+        return self.trace(
+            run_type=run_type,
+            on_result=record,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )(func)
+
+    @contextmanager
+    def instrument(
+        self,
+        agent: Any,
+        *,
+        methods: list[str] | tuple[str, ...],
+        run_type: str,
+        symbols: SymbolsInput = None,
+        metadata: MetadataInput = None,
+        flush_after: bool = False,
+        flush_mode: str = "sync",
+    ) -> Any:
+        before = dict(_agent_tracker_originals(agent))
+        self.wrap_agent(
+            agent,
+            methods=methods,
+            run_type=run_type,
+            symbols=symbols,
+            metadata=metadata,
+            flush_after=flush_after,
+            flush_mode=flush_mode,
+        )
+        try:
+            yield agent
+        finally:
+            originals = _agent_tracker_originals(agent)
+            for name in methods:
+                original = originals.get(name)
+                if original is not None:
+                    setattr(agent, name, original)
+            originals.clear()
+            originals.update(before)
 
     def flush(
         self,
@@ -234,9 +499,10 @@ class AgentTracker:
                 dry_run=dry_run,
             )
         try:
-            return self.uploader.flush(
-                self.queue, dry_run=dry_run, raise_on_error=raise_on_error
-            )
+            with self._flush_lock:
+                return self.uploader.flush(
+                    self.queue, dry_run=dry_run, raise_on_error=raise_on_error
+                )
         except Exception as exc:
             if raise_on_error:
                 raise
@@ -277,12 +543,13 @@ class AgentTracker:
                 dry_run=dry_run,
             )
         try:
-            return self.uploader.flush_all(
-                self.queue,
-                max_batches=max_batches,
-                dry_run=dry_run,
-                raise_on_error=raise_on_error,
-            )
+            with self._flush_lock:
+                return self.uploader.flush_all(
+                    self.queue,
+                    max_batches=max_batches,
+                    dry_run=dry_run,
+                    raise_on_error=raise_on_error,
+                )
         except Exception as exc:
             if raise_on_error:
                 raise
@@ -314,8 +581,56 @@ class AgentTracker:
         )
 
     def close(self, *, timeout_seconds: float | None = None) -> FlushSummary:
-        del timeout_seconds
+        self.stop_background_flush(timeout_seconds=timeout_seconds)
         return self.flush_all()
+
+    def start_background_flush(
+        self,
+        *,
+        interval_seconds: float | None = None,
+    ) -> None:
+        interval = (
+            self.config.flush_interval_seconds
+            if interval_seconds is None
+            else interval_seconds
+        )
+        if interval <= 0 or self.queue is None:
+            return
+        if self._background_thread and self._background_thread.is_alive():
+            return
+        self._background_stop.clear()
+        self._background_thread = threading.Thread(
+            target=self._background_flush_loop,
+            args=(interval,),
+            name="agent-tracker-flush",
+            daemon=True,
+        )
+        self._background_thread.start()
+
+    def stop_background_flush(
+        self,
+        *,
+        timeout_seconds: float | None = None,
+    ) -> None:
+        self._background_stop.set()
+        thread = self._background_thread
+        if thread and thread.is_alive():
+            thread.join(timeout=timeout_seconds)
+
+    @contextmanager
+    def auto_flush(self, *, interval_seconds: float | None = None) -> Any:
+        self.start_background_flush(interval_seconds=interval_seconds)
+        try:
+            yield self
+        finally:
+            self.stop_background_flush()
+            self.flush_all()
+
+    def enable_atexit_flush(self) -> None:
+        if self._atexit_registered:
+            return
+        atexit.register(self.close)
+        self._atexit_registered = True
 
     def queue_health(self) -> QueueHealth | None:
         if self.queue is None:
@@ -394,6 +709,30 @@ class AgentTracker:
             self._events_today = 0
             self._events_by_run.clear()
             self._budget_warning_emitted = False
+
+    def _flush_after(self, flush_mode: str) -> None:
+        if flush_mode == "never":
+            return
+        if flush_mode == "thread":
+            threading.Thread(
+                target=self.flush_all,
+                name="agent-tracker-flush-once",
+                daemon=True,
+            ).start()
+            return
+        self.flush_all()
+
+    async def _flush_after_async(self, flush_mode: str) -> None:
+        if flush_mode == "never":
+            return
+        if flush_mode == "thread":
+            self._flush_after(flush_mode)
+            return
+        await self.aflush_all()
+
+    def _background_flush_loop(self, interval_seconds: float) -> None:
+        while not self._background_stop.wait(interval_seconds):
+            self.flush_all()
 
 
 class Run:
@@ -865,3 +1204,95 @@ def _payload_with_defaults(
 
 def _compact(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in payload.items() if value is not None}
+
+
+def _trace_metadata(
+    function_name: str,
+    args: tuple[Any, ...],
+    kwargs: Mapping[str, Any],
+    metadata: MetadataInput,
+) -> dict[str, Any]:
+    call_metadata = {
+        "function": function_name,
+        "input_hash": hash_text(repr((args, kwargs))),
+    }
+    if callable(metadata):
+        try:
+            extracted = metadata(args, kwargs, None)
+        except Exception as exc:
+            return {
+                **call_metadata,
+                "metadata_extractor_error": type(exc).__name__,
+            }
+        return {**dict(extracted or {}), **call_metadata}
+    return {**dict(metadata or {}), **call_metadata}
+
+
+def _trace_symbols(
+    args: tuple[Any, ...],
+    kwargs: Mapping[str, Any],
+    symbols: SymbolsInput,
+) -> SymbolsValue:
+    if callable(symbols):
+        try:
+            return symbols(args, kwargs, None)
+        except Exception:
+            return None
+    return symbols
+
+
+def _run_result_hook(run: Run, hook: ResultHook | None, result: Any) -> None:
+    if hook is None:
+        return
+    try:
+        hook(run, result)
+    except Exception as exc:
+        run.error(
+            error_kind="result_hook_failed",
+            message=str(exc) or type(exc).__name__,
+            component="integration",
+            severity="warning",
+            resolution_status="open",
+            next_safe_action="observe",
+        )
+
+
+def _run_exception_hook(
+    run: Run,
+    hook: ExceptionHook | None,
+    original_exc: BaseException,
+) -> None:
+    if hook is None:
+        return
+    try:
+        hook(run, original_exc)
+    except Exception as exc:
+        run.error(
+            error_kind="exception_hook_failed",
+            message=str(exc) or type(exc).__name__,
+            component="integration",
+            severity="warning",
+            resolution_status="open",
+            next_safe_action="observe",
+        )
+
+
+def _agent_tracker_originals(agent: Any) -> dict[str, Any]:
+    originals = getattr(agent, "_agent_tracker_originals", None)
+    if isinstance(originals, dict):
+        return originals
+    originals = {}
+    agent._agent_tracker_originals = originals
+    return originals
+
+
+def _resolve_result_value(value: Any, result: Any) -> Any:
+    if callable(value):
+        return value(result)
+    return value
+
+
+def _symbol_list(value: Any) -> SymbolsValue:
+    if value is None:
+        return None
+    return [str(value)]

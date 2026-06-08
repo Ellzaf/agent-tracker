@@ -228,6 +228,26 @@ def run_agent() -> None:
     ...
 ```
 
+You can also wrap existing functions that already return structured results:
+
+```python
+safe_risk_gate = tracker.wrap_risk_gate(
+    risk_gate.validate,
+    approved=lambda result: result.approved,
+    reasons=lambda result: result.reasons,
+)
+
+tracked_decision = tracker.wrap_decision(
+    agent.decide,
+    decision_kind="target_weight",
+    action=lambda result: result.action,
+    symbol=lambda result: result.symbol,
+)
+```
+
+These wrappers preserve the wrapped function's return value and exception
+behavior. Uploads should still be mocked in tests.
+
 ## Add Trading Stats
 
 Ellzaf needs trade lifecycle and account context to compute useful stats. Add
@@ -301,6 +321,13 @@ For a repo review after integration:
 
 ```bash
 agent-tracker print-agent-prompt --profile review
+```
+
+For a custom Python trading agent:
+
+```bash
+agent-tracker print-agent-prompt --profile custom
+agent-tracker doctor-repo --path . --write-plan agent-tracker-plan.md
 ```
 
 For backend ingestion teams:
@@ -470,7 +497,9 @@ and required event coverage.
 ```bash
 agent-tracker init
 agent-tracker doctor-repo --path .
+agent-tracker doctor-repo --path . --write-plan agent-tracker-plan.md
 agent-tracker print-agent-prompt --profile ebook
+agent-tracker print-agent-prompt --profile custom
 agent-tracker print-agent-prompt --profile review
 agent-tracker print-agent-prompt --profile backend
 agent-tracker emit-sample --profile ebook --output ellzaf-sample.jsonl
