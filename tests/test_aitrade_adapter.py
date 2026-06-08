@@ -4,6 +4,7 @@ from pathlib import Path
 
 from agent_tracker.adapters import AgentTrackerAdapter
 from agent_tracker.adapters.aitrade import AitradeExporter
+from agent_tracker.reporting import assess_reporting_readiness, assess_tier_readiness
 from agent_tracker.sink import read_jsonl_events
 from agent_tracker.testing import assert_valid_agent_tracker_events
 
@@ -71,6 +72,27 @@ def test_aitrade_exporter_accepts_empty_explicit_rows_without_database(
 
     assert summary.exported == 0
     assert output.read_text(encoding="utf-8") == ""
+
+
+def test_aitrade_blank_starter_export_has_actionable_readiness_gaps() -> None:
+    rows = _rows()
+    exporter = AitradeExporter(project="aitrade-agent", agent_id="aitrade-blank")
+
+    events, summary = exporter.events_from_rows(rows)
+
+    assert summary.report.repo_profile == "aitrade"
+    assert summary.exported == len(events)
+    assert summary.warnings == ()
+    assert summary.table_counts["risk_checks"] >= 1
+    assert summary.table_counts["order_intents"] >= 1
+    assert summary.table_counts["portfolio_performance_scorecards"] >= 1
+    assert_valid_agent_tracker_events(events)
+    reporting = assess_reporting_readiness(events)
+    tier = assess_tier_readiness(events)
+    assert reporting.can_compute_net_pnl is True
+    assert reporting.can_generate_repair_prompts is True
+    assert "event_type:position.snapshot.recorded" in reporting.missing_fields
+    assert "agent_build" in tier.pro_gaps
 
 
 def _rows() -> dict[str, list[dict[str, object]]]:
