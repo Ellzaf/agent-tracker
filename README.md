@@ -121,6 +121,7 @@ export ELLZAF_TELEMETRY_ENABLED="true"
 export ELLZAF_STORE_FULL_IO="false"
 export ELLZAF_GZIP="true"
 export ELLZAF_SAMPLE_RATE="1.0"
+export ELLZAF_DEDUPE_IDEMPOTENCY_KEYS="false"
 ```
 
 The default base endpoint is `https://ellzaf.com`. The SDK uploads batches to
@@ -519,6 +520,11 @@ the event pending for a later flush with local retry metadata. While a retry
 backoff window is active, `flush()` returns `retry_not_due` and keeps the files
 in place. If another process is already flushing the same queue, `flush()`
 returns `queue_locked` instead of racing the upload.
+
+By default the queue is append-only. Set
+`ELLZAF_DEDUPE_IDEMPOTENCY_KEYS=true` only if your integration may emit the same
+idempotency key more than once before a flush and you want later duplicates to
+reuse the existing pending file.
 
 Check upload configuration without moving queue files:
 

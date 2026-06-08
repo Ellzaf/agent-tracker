@@ -126,7 +126,10 @@ class AgentTracker:
             )
         )
         if should_enqueue:
-            self.queue.enqueue(redacted)
+            self.queue.enqueue(
+                redacted,
+                dedupe_idempotency_key=self.config.dedupe_idempotency_keys,
+            )
             self._record_captured_event(redacted)
         elif (
             self.config.telemetry_enabled

@@ -114,6 +114,7 @@ def test_config_reads_upload_sampling_and_budget_env(tmp_path: Path) -> None:
             "ELLZAF_SAMPLE_RATE": "0.25",
             "ELLZAF_ALWAYS_CAPTURE_ERRORS": "false",
             "ELLZAF_ALWAYS_CAPTURE_RISK_BLOCKS": "false",
+            "ELLZAF_DEDUPE_IDEMPOTENCY_KEYS": "true",
             "ELLZAF_MAX_EVENTS_PER_RUN": "5",
             "ELLZAF_MAX_EVENTS_PER_DAY": "10",
             "ELLZAF_MAX_UPLOAD_BYTES_PER_DAY": "2048",
@@ -124,6 +125,7 @@ def test_config_reads_upload_sampling_and_budget_env(tmp_path: Path) -> None:
     assert config.sample_rate == 0.25
     assert config.always_capture_errors is False
     assert config.always_capture_risk_blocks is False
+    assert config.dedupe_idempotency_keys is True
     assert config.max_events_per_run == 5
     assert config.max_events_per_day == 10
     assert config.max_upload_bytes_per_day == 2048

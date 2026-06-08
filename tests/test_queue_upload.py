@@ -42,6 +42,18 @@ def test_queue_paths_remain_unique_when_clock_repeats(
     assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 2
 
 
+def test_queue_can_dedupe_pending_idempotency_keys(tmp_path: Path) -> None:
+    queue = LocalQueue(tmp_path, max_queue_bytes=1_000_000)
+    first = {"event_id": "evt_first", "idempotency_key": "same-key"}
+    second = {"event_id": "evt_second", "idempotency_key": "same-key"}
+
+    first_path = queue.enqueue(first, dedupe_idempotency_key=True)
+    second_path = queue.enqueue(second, dedupe_idempotency_key=True)
+
+    assert first_path == second_path
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
 def test_queue_rejects_event_that_would_exceed_disk_cap(tmp_path: Path) -> None:
     first_event = {"event_id": "evt_first"}
     first_event_bytes = len((strict_json_dumps(first_event) + "\n").encode("utf-8"))

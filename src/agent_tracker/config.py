@@ -99,6 +99,7 @@ class Config:
     sample_rate: float = DEFAULT_SAMPLE_RATE
     always_capture_errors: bool = True
     always_capture_risk_blocks: bool = True
+    dedupe_idempotency_keys: bool = False
     queue_dir: Path | None = Path(DEFAULT_QUEUE_DIR)
     max_event_bytes: int = DEFAULT_MAX_EVENT_BYTES
     max_batch_events: int = DEFAULT_MAX_BATCH_EVENTS
@@ -157,6 +158,10 @@ class Config:
             always_capture_risk_blocks=_bool(
                 source.get("ELLZAF_ALWAYS_CAPTURE_RISK_BLOCKS"),
                 default=True,
+            ),
+            dedupe_idempotency_keys=_bool(
+                source.get("ELLZAF_DEDUPE_IDEMPOTENCY_KEYS"),
+                default=False,
             ),
             queue_dir=queue_dir,
             max_event_bytes=_int(

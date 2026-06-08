@@ -75,7 +75,18 @@ class LocalQueue:
         ):
             directory.mkdir(parents=True, exist_ok=True)
 
-    def enqueue(self, event: dict[str, Any]) -> Path:
+    def enqueue(
+        self,
+        event: dict[str, Any],
+        *,
+        dedupe_idempotency_key: bool = False,
+    ) -> Path:
+        if dedupe_idempotency_key and (
+            existing := self._pending_idempotency_key_path(
+                str(event.get("idempotency_key") or "")
+            )
+        ):
+            return existing
         event_id = str(event.get("event_id") or "unknown")
         line = strict_json_dumps(event) + "\n"
         self._enforce_disk_cap(extra_bytes=len(line.encode("utf-8")))
@@ -260,6 +271,21 @@ class LocalQueue:
         )
         if pending_bytes + extra_bytes > self.max_queue_bytes:
             raise QueueError("local queue disk cap exceeded")
+
+    def _pending_idempotency_key_path(self, idempotency_key: str) -> Path | None:
+        if not idempotency_key:
+            return None
+        for path in sorted(self.pending_dir.glob("*.jsonl")):
+            try:
+                value = strict_json_loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if (
+                isinstance(value, Mapping)
+                and value.get("idempotency_key") == idempotency_key
+            ):
+                return path
+        return None
 
     def _retry_metadata(self, path: Path) -> dict[str, Any]:
         metadata_path = _metadata_path(path)

@@ -17,6 +17,8 @@
   prompt, build, and strategy events.
 - Added queue upload locking, retry sidecar metadata, backoff-aware pending
   selection, `Retry-After` support, and last-upload health fields.
+- Added opt-in local idempotency-key dedupe through
+  `ELLZAF_DEDUPE_IDEMPOTENCY_KEYS`.
 - Added reusable batch and upload-response contract fixtures for SDK and
   website ingestion CI.
 - Added CLI commands: `tier-readiness`, `agentic-security-readiness`,
