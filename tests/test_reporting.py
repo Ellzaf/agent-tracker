@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from agent_tracker import AgentTracker, Config
 from agent_tracker.errors import SchemaValidationError
-from agent_tracker.reporting import assess_reporting_readiness
+from agent_tracker.reporting import (
+    assess_agentic_security_readiness,
+    assess_reporting_readiness,
+    assess_tier_readiness,
+    build_dataset_items,
+    build_eval_plan,
+    build_repair_pack,
+)
 from agent_tracker.resources import list_resource_names, read_json_resource
 from agent_tracker.testing import assert_valid_agent_tracker_events
 
@@ -160,6 +168,11 @@ def test_reporting_helpers_emit_strict_ready_events(tmp_path: Path) -> None:
     assert readiness.to_dict()["strict_reporting_ready"] is True
     assert readiness.can_compute_closed_trade_stats is True
     assert readiness.can_generate_repair_prompts is True
+    tier = assess_tier_readiness(events)
+    assert tier.free_ready is False
+    assert tier.basic_ready is False
+    assert "run_timeline" in tier.free_gaps
+    assert "decisions" in tier.basic_gaps
 
 
 def test_strict_reporting_reports_missing_data() -> None:
@@ -184,6 +197,88 @@ def test_reporting_fixtures_are_strict_reporting_ready() -> None:
 
     assert_valid_agent_tracker_events(events, profile="strict-reporting")
     assert assess_reporting_readiness(events).can_publish_proof is True
+    tier = assess_tier_readiness(events)
+    assert tier.event_count == len(events)
+    assert tier.stat_coverage_score == 88
+    assert tier.basic_gaps == ("decisions",)
+    assert "run_timeline" in tier.free_gaps
+
+
+def test_tier_readiness_accepts_complete_run_timeline(tmp_path: Path) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=True)
+    )
+    events: list[dict] = []
+    with client.run(run_type="portfolio_allocation", symbols=["NVDA"]) as run:
+        events.append(
+            run.decision_proposed(
+                decision_kind="target_weight",
+                action="hold",
+                symbol="NVDA",
+            )
+        )
+        events.append(run.risk_check(approved=True))
+
+    queued = [
+        event
+        for event in read_jsonl_events_from_queue(tmp_path)
+        if event["event_type"] in {"agent.run.started", "agent.run.completed"}
+    ]
+    tier = assess_tier_readiness([*queued, *events])
+    assert tier.free_ready is True
+    assert tier.basic_ready is False
+
+
+def read_jsonl_events_from_queue(path: Path) -> list[dict]:
+    return [
+        json.loads(item.read_text(encoding="utf-8"))
+        for item in sorted((path / "pending").glob("*.jsonl"))
+    ]
+
+
+def test_agentic_security_readiness_detects_gaps_and_evidence(tmp_path: Path) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    event = client.event(
+        "tool.call.completed",
+        run_id="run_security",
+        payload={
+            "tool_name": "mcp_fetch",
+            "status": "succeeded",
+            "tool_policy_id": "policy_1",
+            "tool_allowed": True,
+            "resource_uri_hash": "sha256:" + "0" * 64,
+            "budget_remaining": "10",
+            "prompt_injection_tested": True,
+        },
+    )
+
+    readiness = assess_agentic_security_readiness([event])
+
+    assert readiness.prompt_injection_coverage is True
+    assert readiness.tool_policy_coverage is True
+    assert readiness.cost_budget_coverage is True
+    assert "memory_provenance_coverage" in readiness.gaps
+
+
+def test_repair_pack_dataset_and_eval_plan_are_deterministic() -> None:
+    events = [
+        read_json_resource("schemas", "fixtures", "valid", "stale-market-tape.json"),
+        read_json_resource("schemas", "fixtures", "reporting", "risk-check.json"),
+    ]
+
+    pack = build_repair_pack(events)
+    dataset = build_dataset_items(events)
+    plan = build_eval_plan(events)
+
+    assert pack["event_count"] == 2
+    assert pack["findings"]
+    assert "Preserve trading behavior" in pack["prompt"]
+    assert dataset
+    assert dataset[0]["expected_invariant"]
+    assert plan["dataset_item_count"] == len(dataset)
+    assert plan["llm_judge_required"] is False
 
 
 @pytest.mark.parametrize(

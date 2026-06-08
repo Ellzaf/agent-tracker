@@ -300,6 +300,7 @@ Run the readiness check against exported JSONL:
 ```bash
 agent-tracker validate-jsonl ellzaf-events.jsonl --profile strict-reporting
 agent-tracker reporting-readiness ellzaf-events.jsonl
+agent-tracker tier-readiness ellzaf-events.jsonl
 ```
 
 The readiness report tells you which dashboards Ellzaf can compute from your
@@ -381,6 +382,18 @@ Validate any file before you upload or share it:
 agent-tracker validate-jsonl ellzaf-sample.jsonl
 agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
 ```
+
+Build local product artifacts:
+
+```bash
+agent-tracker tier-readiness ellzaf-reporting.jsonl
+agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker repair-pack ellzaf-reporting.jsonl --output repair-pack.json
+agent-tracker dataset-from-events ellzaf-reporting.jsonl --output dataset.jsonl
+agent-tracker eval-plan ellzaf-reporting.jsonl --output eval-plan.json
+```
+
+These commands are deterministic and local. They do not call an LLM.
 
 ## Reference-Code Exporter
 
@@ -507,6 +520,11 @@ agent-tracker emit-sample --profile reporting --output ellzaf-reporting.jsonl
 agent-tracker validate-jsonl ellzaf-sample.jsonl
 agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
 agent-tracker reporting-readiness ellzaf-reporting.jsonl
+agent-tracker tier-readiness ellzaf-reporting.jsonl
+agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker repair-pack ellzaf-reporting.jsonl --output repair-pack.json
+agent-tracker dataset-from-events ellzaf-reporting.jsonl --output dataset.jsonl
+agent-tracker eval-plan ellzaf-reporting.jsonl --output eval-plan.json
 agent-tracker queue-health
 agent-tracker flush
 agent-tracker flush --drain

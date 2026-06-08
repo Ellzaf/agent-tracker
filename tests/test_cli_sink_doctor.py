@@ -123,6 +123,47 @@ def test_cli_emit_reporting_sample_validate_and_show_readiness(
     assert readiness["missing_fields"] == []
     assert readiness["can_generate_repair_prompts"] is True
 
+    assert main(["tier-readiness", str(path)]) == 0
+    tier = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert tier["event_count"] > 0
+    assert "free_ready" in tier
+
+    assert main(["agentic-security-readiness", str(path)]) == 0
+    security = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert "gaps" in security
+
+    repair_output = tmp_path / "repair.json"
+    prompt_output = tmp_path / "repair.md"
+    assert (
+        main(
+            [
+                "repair-pack",
+                str(path),
+                "--output",
+                str(repair_output),
+                "--prompt-output",
+                str(prompt_output),
+            ]
+        )
+        == 0
+    )
+    repair_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert repair_summary["output"] == str(repair_output)
+    assert "Preserve trading behavior" in prompt_output.read_text(encoding="utf-8")
+
+    dataset_output = tmp_path / "dataset.jsonl"
+    assert (
+        main(["dataset-from-events", str(path), "--output", str(dataset_output)])
+        == 0
+    )
+    dataset_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert dataset_summary["dataset_item_count"] >= 1
+
+    eval_output = tmp_path / "eval.json"
+    assert main(["eval-plan", str(path), "--output", str(eval_output)]) == 0
+    eval_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert eval_summary["output"] == str(eval_output)
+
 
 def test_cli_validate_jsonl_rejects_raw_prompt(tmp_path: Path) -> None:
     event = read_json_resource("schemas", "fixtures", "invalid", "raw-prompt-leak.json")

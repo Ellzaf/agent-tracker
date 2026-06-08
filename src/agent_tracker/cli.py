@@ -16,7 +16,14 @@ from agent_tracker.constants import DEFAULT_MAX_QUEUE_BYTES, DEFAULT_QUEUE_DIR
 from agent_tracker.doctor import doctor_repo, format_doctor_plan, format_doctor_report
 from agent_tracker.errors import AgentTrackerError
 from agent_tracker.queue import LocalQueue
-from agent_tracker.reporting import assess_reporting_readiness
+from agent_tracker.reporting import (
+    assess_agentic_security_readiness,
+    assess_reporting_readiness,
+    assess_tier_readiness,
+    build_dataset_items,
+    build_eval_plan,
+    build_repair_pack,
+)
 from agent_tracker.resources import (
     list_resource_names,
     read_json_resource,
@@ -75,6 +82,47 @@ def _parser() -> argparse.ArgumentParser:
     readiness.add_argument("path")
     readiness.add_argument("--allow-full-io", action="store_true")
     readiness.set_defaults(func=_cmd_reporting_readiness)
+
+    tier_readiness = subparsers.add_parser(
+        "tier-readiness", help="show Free, Basic, and Pro data readiness"
+    )
+    tier_readiness.add_argument("path")
+    tier_readiness.add_argument("--allow-full-io", action="store_true")
+    tier_readiness.set_defaults(func=_cmd_tier_readiness)
+
+    security_readiness = subparsers.add_parser(
+        "agentic-security-readiness",
+        help="show agentic security telemetry readiness",
+    )
+    security_readiness.add_argument("path")
+    security_readiness.add_argument("--allow-full-io", action="store_true")
+    security_readiness.set_defaults(func=_cmd_agentic_security_readiness)
+
+    repair_pack = subparsers.add_parser(
+        "repair-pack", help="build a local deterministic repair evidence pack"
+    )
+    repair_pack.add_argument("path")
+    repair_pack.add_argument("--output")
+    repair_pack.add_argument("--prompt-output")
+    repair_pack.add_argument("--max-findings", type=int, default=5)
+    repair_pack.add_argument("--allow-full-io", action="store_true")
+    repair_pack.set_defaults(func=_cmd_repair_pack)
+
+    dataset = subparsers.add_parser(
+        "dataset-from-events", help="create sanitized dataset JSONL from events"
+    )
+    dataset.add_argument("path")
+    dataset.add_argument("--output", required=True)
+    dataset.add_argument("--allow-full-io", action="store_true")
+    dataset.set_defaults(func=_cmd_dataset_from_events)
+
+    eval_plan = subparsers.add_parser(
+        "eval-plan", help="create a deterministic eval plan from events"
+    )
+    eval_plan.add_argument("path")
+    eval_plan.add_argument("--output")
+    eval_plan.add_argument("--allow-full-io", action="store_true")
+    eval_plan.set_defaults(func=_cmd_eval_plan)
 
     queue = subparsers.add_parser("queue-health", help="show local queue health")
     queue.add_argument("--queue-dir", default=DEFAULT_QUEUE_DIR)
@@ -184,6 +232,69 @@ def _cmd_reporting_readiness(args: argparse.Namespace) -> int:
     events = read_jsonl_events(args.path)
     assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
     print(strict_json_dumps(assess_reporting_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_tier_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_tier_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_agentic_security_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_agentic_security_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_repair_pack(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    pack = build_repair_pack(events, max_findings=args.max_findings)
+    if args.output:
+        Path(args.output).write_text(strict_json_dumps(pack) + "\n", encoding="utf-8")
+    if args.prompt_output:
+        Path(args.prompt_output).write_text(pack["prompt"] + "\n", encoding="utf-8")
+    if not args.output and not args.prompt_output:
+        print(strict_json_dumps(pack))
+    else:
+        print(
+            strict_json_dumps(
+                {
+                    "event_count": pack["event_count"],
+                    "finding_count": len(pack["findings"]),
+                    "output": args.output,
+                    "prompt_output": args.prompt_output,
+                }
+            )
+        )
+    return 0
+
+
+def _cmd_dataset_from_events(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    items = build_dataset_items(events)
+    output = Path(args.output)
+    output.write_text(
+        "".join(f"{strict_json_dumps(item)}\n" for item in items),
+        encoding="utf-8",
+    )
+    print(strict_json_dumps({"dataset_item_count": len(items), "output": args.output}))
+    return 0
+
+
+def _cmd_eval_plan(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    plan = build_eval_plan(events)
+    if args.output:
+        Path(args.output).write_text(strict_json_dumps(plan) + "\n", encoding="utf-8")
+        print(strict_json_dumps({"output": args.output, **plan}))
+    else:
+        print(strict_json_dumps(plan))
     return 0
 
 

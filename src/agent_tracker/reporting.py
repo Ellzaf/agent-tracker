@@ -169,6 +169,66 @@ class ReportingReadiness:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class TierReadiness:
+    """Feature readiness for Ellzaf Agent Free, Basic, and Pro."""
+
+    event_count: int
+    free_ready: bool
+    basic_ready: bool
+    pro_ready: bool
+    free_gaps: tuple[str, ...]
+    basic_gaps: tuple[str, ...]
+    pro_gaps: tuple[str, ...]
+    data_quality_score: int
+    privacy_score: int
+    stat_coverage_score: int
+    repair_prompt_score: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_count": self.event_count,
+            "free_ready": self.free_ready,
+            "basic_ready": self.basic_ready,
+            "pro_ready": self.pro_ready,
+            "free_gaps": list(self.free_gaps),
+            "basic_gaps": list(self.basic_gaps),
+            "pro_gaps": list(self.pro_gaps),
+            "data_quality_score": self.data_quality_score,
+            "privacy_score": self.privacy_score,
+            "stat_coverage_score": self.stat_coverage_score,
+            "repair_prompt_score": self.repair_prompt_score,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AgenticSecurityReadiness:
+    """Readiness for agentic safety and security telemetry."""
+
+    event_count: int
+    ready: bool
+    prompt_injection_coverage: bool
+    sensitive_information_coverage: bool
+    tool_policy_coverage: bool
+    memory_provenance_coverage: bool
+    cost_budget_coverage: bool
+    excessive_agency_warnings: tuple[str, ...]
+    gaps: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_count": self.event_count,
+            "ready": self.ready,
+            "prompt_injection_coverage": self.prompt_injection_coverage,
+            "sensitive_information_coverage": self.sensitive_information_coverage,
+            "tool_policy_coverage": self.tool_policy_coverage,
+            "memory_provenance_coverage": self.memory_provenance_coverage,
+            "cost_budget_coverage": self.cost_budget_coverage,
+            "excessive_agency_warnings": list(self.excessive_agency_warnings),
+            "gaps": list(self.gaps),
+        }
+
+
 def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> None:
     """Validate event-specific reporting fields when a reporting event is used."""
 
@@ -400,6 +460,227 @@ def assess_reporting_readiness(
     )
 
 
+def assess_tier_readiness(events: Iterable[Mapping[str, Any]]) -> TierReadiness:
+    """Assess hosted Free, Basic, and Pro feature readiness."""
+
+    event_list = list(events)
+    reporting = assess_reporting_readiness(event_list)
+    event_types = {str(event.get("event_type", "")) for event in event_list}
+    payloads = _payloads(event_list)
+
+    free_gaps: set[str] = set()
+    basic_gaps: set[str] = set()
+    pro_gaps: set[str] = set()
+
+    if not event_list:
+        free_gaps.add("no_events")
+    if not {"agent.run.started", "agent.run.completed"} <= event_types:
+        free_gaps.add("run_timeline")
+    if any(_privacy_flag(event, "contains_prompt_text") for event in event_list):
+        free_gaps.add("raw_prompt_text_present")
+    if any(_privacy_flag(event, "contains_output_text") for event in event_list):
+        free_gaps.add("raw_output_text_present")
+
+    basic_requirements = {
+        "decision.proposed": "decisions",
+        "risk.check.completed": "risk_checks",
+        "paper.fill.recorded": "paper_fills",
+        "position.snapshot.recorded": "positions",
+        "performance.snapshot.recorded": "performance",
+        "capital.flow.recorded": "capital_flows",
+    }
+    for event_type, gap in basic_requirements.items():
+        if event_type not in event_types:
+            basic_gaps.add(gap)
+    if not reporting.can_compute_closed_trade_stats:
+        basic_gaps.add("closed_trade_stats")
+    if not reporting.can_compute_net_pnl:
+        basic_gaps.add("net_pnl")
+    if not reporting.can_compute_flow_adjusted_pnl:
+        basic_gaps.add("flow_adjusted_pnl")
+    if not reporting.can_compute_strategy_stats:
+        basic_gaps.add("strategy_stats")
+
+    pro_requirements = {
+        "agent.build.recorded": "agent_build",
+        "replay.result.recorded": "replay_results",
+        "llm.call.started": "prompt_versions",
+        "decision.outcome.recorded": "decision_outcomes",
+    }
+    for event_type, gap in pro_requirements.items():
+        if event_type not in event_types:
+            pro_gaps.add(gap)
+    if not reporting.can_generate_repair_prompts:
+        pro_gaps.add("repair_prompt_evidence")
+    if not reporting.can_compute_prompt_drift_stats:
+        pro_gaps.add("prompt_drift")
+    if not any(_has_any(payload, {"mistake_family"}) for payload in payloads):
+        pro_gaps.add("mistake_taxonomy")
+
+    free_ready = not free_gaps
+    basic_ready = free_ready and not basic_gaps
+    pro_ready = basic_ready and not pro_gaps
+
+    return TierReadiness(
+        event_count=len(event_list),
+        free_ready=free_ready,
+        basic_ready=basic_ready,
+        pro_ready=pro_ready,
+        free_gaps=tuple(sorted(free_gaps)),
+        basic_gaps=tuple(sorted(basic_gaps)),
+        pro_gaps=tuple(sorted(pro_gaps)),
+        data_quality_score=_score_from_gaps(free_gaps | basic_gaps | pro_gaps),
+        privacy_score=100 if not (free_gaps & _PRIVACY_GAPS) else 60,
+        stat_coverage_score=_score_from_gaps(basic_gaps),
+        repair_prompt_score=_score_from_gaps(pro_gaps),
+    )
+
+
+def assess_agentic_security_readiness(
+    events: Iterable[Mapping[str, Any]],
+) -> AgenticSecurityReadiness:
+    """Assess whether events carry enough security context for Pro diagnostics."""
+
+    event_list = list(events)
+    payloads = _payloads(event_list)
+    gaps: set[str] = set()
+    warnings: set[str] = set()
+
+    prompt_injection = any(
+        _contains_text(payload, "prompt_injection")
+        or payload.get("mistake_family") == "security.prompt_injection"
+        or payload.get("prompt_injection_tested") is True
+        for payload in payloads
+    )
+    if not prompt_injection:
+        gaps.add("prompt_injection_coverage")
+
+    sensitive_info = any(
+        _privacy_flag(event, "contains_account_identifier")
+        or _privacy_flag(event, "contains_broker_payload")
+        for event in event_list
+    ) or any(
+        _has_any(payload, {"account_scope_hash", "resource_uri_hash"})
+        for payload in payloads
+    )
+    if not sensitive_info:
+        gaps.add("sensitive_information_coverage")
+
+    tool_policy = any(
+        _has_any(payload, {"tool_policy_id", "tool_allowed", "tool_scope"})
+        for payload in payloads
+    )
+    if not tool_policy:
+        gaps.add("tool_policy_coverage")
+
+    memory_provenance = any(
+        _has_any(payload, {"memory_scope", "context_provenance", "freshness_seconds"})
+        for payload in payloads
+    )
+    if not memory_provenance:
+        gaps.add("memory_provenance_coverage")
+
+    cost_budget = any(
+        _has_any(payload, {"budget_policy_id", "budget_remaining", "estimated_cost"})
+        for payload in payloads
+    ) or any(event.get("event_type") == "cost.usage.recorded" for event in event_list)
+    if not cost_budget:
+        gaps.add("cost_budget_coverage")
+
+    for payload in payloads:
+        if payload.get("approval_required") is True and not payload.get(
+            "approval_observed"
+        ):
+            warnings.add("approval_required_without_observed_approval")
+
+    return AgenticSecurityReadiness(
+        event_count=len(event_list),
+        ready=not gaps and not warnings,
+        prompt_injection_coverage=prompt_injection,
+        sensitive_information_coverage=sensitive_info,
+        tool_policy_coverage=tool_policy,
+        memory_provenance_coverage=memory_provenance,
+        cost_budget_coverage=cost_budget,
+        excessive_agency_warnings=tuple(sorted(warnings)),
+        gaps=tuple(sorted(gaps)),
+    )
+
+
+def build_repair_pack(
+    events: Iterable[Mapping[str, Any]],
+    *,
+    max_findings: int = 5,
+) -> dict[str, Any]:
+    """Build a deterministic local repair evidence pack."""
+
+    event_list = list(events)
+    tier = assess_tier_readiness(event_list)
+    security = assess_agentic_security_readiness(event_list)
+    findings = _repair_findings(event_list, tier, security)[:max_findings]
+    return {
+        "version": "2026-06-08",
+        "event_count": len(event_list),
+        "tier_readiness": tier.to_dict(),
+        "agentic_security_readiness": security.to_dict(),
+        "findings": findings,
+        "prompt": _repair_prompt(findings),
+    }
+
+
+def build_dataset_items(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Create sanitized dataset items from event evidence."""
+
+    items: list[dict[str, Any]] = []
+    for event in events:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        if event.get("event_type") not in {
+            "risk.check.completed",
+            "trade.rejected",
+            "error.recorded",
+            "replay.result.recorded",
+            "decision.outcome.recorded",
+        }:
+            continue
+        items.append(
+            {
+                "dataset_item_id": f"ds_{event.get('event_id')}",
+                "event_id": event.get("event_id"),
+                "run_id": event.get("run_id"),
+                "event_type": event.get("event_type"),
+                "symbols": list(event.get("symbols", [])),
+                "environment": event.get("environment"),
+                "session_date": payload.get("session_date"),
+                "mistake_family": payload.get("mistake_family"),
+                "component": payload.get("component"),
+                "expected_invariant": _expected_invariant(event),
+            }
+        )
+    return items
+
+
+def build_eval_plan(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Build a deterministic eval plan from telemetry events."""
+
+    dataset = build_dataset_items(events)
+    checks = sorted(
+        {
+            item["expected_invariant"]
+            for item in dataset
+            if item.get("expected_invariant")
+        }
+    )
+    return {
+        "version": "2026-06-08",
+        "dataset_item_count": len(dataset),
+        "deterministic_checks": checks,
+        "llm_judge_required": False,
+        "privacy_policy": "hash_or_reference_only",
+        "dataset_event_ids": [item["event_id"] for item in dataset],
+    }
+
+
 def _validate_reporting_extensions(
     _event_type: str, payload: Mapping[str, Any]
 ) -> None:
@@ -508,3 +789,142 @@ def _has_any(payload: Mapping[str, Any], fields: set[str]) -> bool:
 
 def _present(value: Any) -> bool:
     return value is not None and value != ""
+
+
+_PRIVACY_GAPS = {"raw_prompt_text_present", "raw_output_text_present"}
+
+
+def _payloads(events: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    return [
+        payload
+        for event in events
+        if isinstance(payload := event.get("payload"), Mapping)
+    ]
+
+
+def _privacy_flag(event: Mapping[str, Any], field: str) -> bool:
+    privacy = event.get("privacy")
+    return isinstance(privacy, Mapping) and privacy.get(field) is True
+
+
+def _score_from_gaps(gaps: set[str]) -> int:
+    return max(0, 100 - len(gaps) * 12)
+
+
+def _contains_text(payload: Mapping[str, Any], needle: str) -> bool:
+    lowered = needle.lower()
+    for value in payload.values():
+        if isinstance(value, str) and lowered in value.lower():
+            return True
+        if isinstance(value, list) and any(
+            isinstance(item, str) and lowered in item.lower() for item in value
+        ):
+            return True
+    return False
+
+
+def _repair_findings(
+    events: list[Mapping[str, Any]],
+    tier: TierReadiness,
+    security: AgenticSecurityReadiness,
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for gap in tier.pro_gaps:
+        findings.append(
+            {
+                "finding_id": f"tier.pro.{gap}",
+                "severity": "warning",
+                "target_surface": "pro_readiness",
+                "message": f"Pro readiness is missing {gap}.",
+                "evidence_event_ids": [],
+                "suggested_tests": ["validate strict reporting sample"],
+            }
+        )
+    for gap in tier.basic_gaps:
+        findings.append(
+            {
+                "finding_id": f"tier.basic.{gap}",
+                "severity": "warning",
+                "target_surface": "basic_stats",
+                "message": f"Basic statistics are missing {gap}.",
+                "evidence_event_ids": [],
+                "suggested_tests": ["run reporting-readiness"],
+            }
+        )
+    for gap in security.gaps:
+        findings.append(
+            {
+                "finding_id": f"security.{gap}",
+                "severity": "warning",
+                "target_surface": "agentic_security",
+                "message": f"Security readiness is missing {gap}.",
+                "evidence_event_ids": [],
+                "suggested_tests": ["add mocked tool or memory safety event"],
+            }
+        )
+    mistake_events = [
+        event
+        for event in events
+        if isinstance(event.get("payload"), Mapping)
+        and event["payload"].get("mistake_family")
+    ]
+    for event in mistake_events:
+        payload = event["payload"]
+        findings.append(
+            {
+                "finding_id": f"mistake.{payload.get('mistake_family')}",
+                "severity": payload.get("severity", "warning"),
+                "target_surface": payload.get("component", "agent"),
+                "message": f"Recorded mistake family {payload.get('mistake_family')}.",
+                "evidence_event_ids": [event.get("event_id")],
+                "suggested_tests": ["add or rerun a replay case for this finding"],
+            }
+        )
+    return findings
+
+
+def _repair_prompt(findings: list[dict[str, Any]]) -> str:
+    if not findings:
+        return (
+            "Review this agent-tracker event set. Required telemetry is present. "
+            "Preserve trading behavior and add regression tests for any change."
+        )
+    lines = [
+        "Use these Agent Tracker findings to improve telemetry and tests.",
+        "",
+        "Rules:",
+        "- Preserve trading behavior.",
+        "- Do not add broker execution.",
+        "- Do not weaken risk gates.",
+        "- Do not include secrets, account IDs, broker payloads, raw prompts, "
+        "or raw outputs.",
+        "",
+        "Findings:",
+    ]
+    for finding in findings:
+        evidence = ", ".join(str(item) for item in finding["evidence_event_ids"])
+        evidence_text = f" Evidence: {evidence}." if evidence else ""
+        lines.append(f"- {finding['finding_id']}: {finding['message']}{evidence_text}")
+    lines.extend(
+        [
+            "",
+            "Add focused tests, run Agent Tracker validation, and keep uploads mocked.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _expected_invariant(event: Mapping[str, Any]) -> str:
+    event_type = str(event.get("event_type", ""))
+    payload = event.get("payload") if isinstance(event.get("payload"), Mapping) else {}
+    if event_type == "risk.check.completed" and payload.get("approved") is False:
+        return "risk_block_preserved"
+    if event_type == "trade.rejected":
+        return "rejected_trade_remains_rejected"
+    if event_type == "error.recorded":
+        return "error_path_has_safe_terminal_state"
+    if event_type == "replay.result.recorded":
+        return "replay_suite_passes_or_reports_failures"
+    if event_type == "decision.outcome.recorded":
+        return "decision_outcome_links_to_evidence"
+    return "agent_behavior_preserved"
