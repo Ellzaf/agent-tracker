@@ -101,9 +101,10 @@ class BatchUploader:
         )
 
     def _post_batch(self, events: list[dict[str, Any]]) -> _UploadResponse:
+        batch_id = f"batch_{uuid4().hex}"
         body = strict_json_dumps(
             {
-                "batch_id": f"batch_{uuid4().hex}",
+                "batch_id": batch_id,
                 "sent_at": utc_now_iso(),
                 "events": events,
             }
@@ -111,7 +112,7 @@ class BatchUploader:
         headers = {
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
-            "Idempotency-Key": f"batch_{uuid4().hex}",
+            "Idempotency-Key": batch_id,
             "User-Agent": "agent-tracker-python/0.1.0",
         }
         if self.gzip_enabled:

@@ -102,7 +102,12 @@ def test_flush_uploads_accepted_batch_and_moves_files(tmp_path: Path) -> None:
 
     assert summary.accepted == 1
     assert captured["url"] == "https://api.ellzaf.com/v1/events/batch"
+    assert captured["headers"]["Authorization"] == "Bearer project-key"  # type: ignore[index]
+    assert captured["headers"]["Content-Type"] == "application/json"  # type: ignore[index]
     assert captured["headers"]["Content-Encoding"] == "gzip"  # type: ignore[index]
+    assert captured["headers"]["Idempotency-Key"] == captured["payload"]["batch_id"]  # type: ignore[index]
+    assert captured["payload"]["sent_at"]  # type: ignore[index]
+    assert len(captured["payload"]["events"]) == 1  # type: ignore[index]
     assert (tmp_path / "pending").exists()
     assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 0
     assert len(list((tmp_path / "uploaded").glob("*.jsonl"))) == 1
