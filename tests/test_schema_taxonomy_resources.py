@@ -74,6 +74,46 @@ def test_reporting_fixtures_pass_strict_reporting_profile() -> None:
     assert_valid_agent_tracker_events(fixtures, profile="strict-reporting")
 
 
+def test_batch_contract_fixtures_are_package_data_and_validated() -> None:
+    valid_batches = [
+        read_json_resource("schemas", "fixtures", "batches", "valid", name)
+        for name in list_resource_names("schemas", "fixtures", "batches", "valid")
+    ]
+    invalid_batches = [
+        read_json_resource("schemas", "fixtures", "batches", "invalid", name)
+        for name in list_resource_names("schemas", "fixtures", "batches", "invalid")
+    ]
+
+    assert len(valid_batches) == 1
+    assert len(invalid_batches) == 2
+    for batch in valid_batches:
+        assert batch["batch_id"].startswith("batch_")
+        assert batch["events"]
+        assert_valid_agent_tracker_events(batch["events"])
+
+
+def test_upload_response_contract_fixtures_are_package_data() -> None:
+    responses = {
+        name: read_json_resource("schemas", "fixtures", "upload-responses", name)
+        for name in list_resource_names("schemas", "fixtures", "upload-responses")
+    }
+
+    assert {
+        "accepted.json",
+        "partial-permanent-rejection.json",
+        "retryable-rejection.json",
+        "invalid-count-mismatch.json",
+    } <= set(responses)
+    for name, response in responses.items():
+        assert set(response) == {"accepted", "duplicates", "rejected"}
+        assert isinstance(response["rejected"], list)
+        if name != "invalid-count-mismatch.json":
+            total = response["accepted"] + response["duplicates"] + len(
+                response["rejected"]
+            )
+            assert total == 1
+
+
 @pytest.mark.parametrize(
     "name",
     list_resource_names("schemas", "fixtures", "invalid"),
@@ -119,6 +159,21 @@ def test_json_schemas_validate_with_jsonschema_when_available() -> None:
         validator.validate(read_json_resource("schemas", "fixtures", "valid", name))
     for name in list_resource_names("schemas", "fixtures", "reporting"):
         validator.validate(read_json_resource("schemas", "fixtures", "reporting", name))
+    batch_schema = read_json_resource("schemas", "batch.schema.json")
+    batch_schema["properties"]["events"]["items"] = envelope
+    batch_validator = jsonschema.Draft202012Validator(
+        batch_schema,
+        format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER,
+    )
+    for name in list_resource_names("schemas", "fixtures", "batches", "valid"):
+        batch_validator.validate(
+            read_json_resource("schemas", "fixtures", "batches", "valid", name)
+        )
+    for name in list_resource_names("schemas", "fixtures", "batches", "invalid"):
+        with pytest.raises(jsonschema.ValidationError):
+            batch_validator.validate(
+                read_json_resource("schemas", "fixtures", "batches", "invalid", name)
+            )
 
     valid_event = read_json_resource(
         "schemas", "fixtures", "valid", "cash-only-risk-block.json"

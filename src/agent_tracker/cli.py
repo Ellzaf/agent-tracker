@@ -15,13 +15,17 @@ from agent_tracker.config import Config
 from agent_tracker.constants import DEFAULT_MAX_QUEUE_BYTES, DEFAULT_QUEUE_DIR
 from agent_tracker.doctor import doctor_repo, format_doctor_plan, format_doctor_report
 from agent_tracker.errors import AgentTrackerError
+from agent_tracker.mapping import export_mapped_events
 from agent_tracker.queue import LocalQueue
 from agent_tracker.reporting import (
     assess_agentic_security_readiness,
+    assess_arena_readiness,
+    assess_proof_readiness,
     assess_reporting_readiness,
     assess_tier_readiness,
     build_dataset_items,
     build_eval_plan,
+    build_experiment_manifest,
     build_repair_pack,
 )
 from agent_tracker.resources import (
@@ -98,6 +102,20 @@ def _parser() -> argparse.ArgumentParser:
     security_readiness.add_argument("--allow-full-io", action="store_true")
     security_readiness.set_defaults(func=_cmd_agentic_security_readiness)
 
+    proof_readiness = subparsers.add_parser(
+        "proof-readiness", help="show proof page and trust badge readiness"
+    )
+    proof_readiness.add_argument("path")
+    proof_readiness.add_argument("--allow-full-io", action="store_true")
+    proof_readiness.set_defaults(func=_cmd_proof_readiness)
+
+    arena_readiness = subparsers.add_parser(
+        "arena-readiness", help="show benchmark challenge readiness"
+    )
+    arena_readiness.add_argument("path")
+    arena_readiness.add_argument("--allow-full-io", action="store_true")
+    arena_readiness.set_defaults(func=_cmd_arena_readiness)
+
     repair_pack = subparsers.add_parser(
         "repair-pack", help="build a local deterministic repair evidence pack"
     )
@@ -124,9 +142,23 @@ def _parser() -> argparse.ArgumentParser:
     eval_plan.add_argument("--allow-full-io", action="store_true")
     eval_plan.set_defaults(func=_cmd_eval_plan)
 
+    experiment = subparsers.add_parser(
+        "experiment-manifest", help="create a deterministic experiment manifest"
+    )
+    experiment.add_argument("--from-repair-pack", required=True)
+    experiment.add_argument("--output")
+    experiment.add_argument(
+        "--change",
+        action="append",
+        default=[],
+        help="declared change as key=value; may be passed more than once",
+    )
+    experiment.set_defaults(func=_cmd_experiment_manifest)
+
     queue = subparsers.add_parser("queue-health", help="show local queue health")
     queue.add_argument("--queue-dir", default=DEFAULT_QUEUE_DIR)
     queue.add_argument("--max-queue-bytes", type=int, default=DEFAULT_MAX_QUEUE_BYTES)
+    queue.add_argument("--max-batch-events", type=int)
     queue.set_defaults(func=_cmd_queue_health)
 
     flush = subparsers.add_parser("flush", help="flush the configured local queue")
@@ -178,6 +210,13 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--environment", default="paper")
     export.add_argument("--limit-per-table", type=int, default=500)
     export.set_defaults(func=_cmd_export_aitrade)
+
+    map_events = subparsers.add_parser(
+        "map-events", help="export events from a declarative TOML or JSON mapping"
+    )
+    map_events.add_argument("--config", required=True)
+    map_events.add_argument("--output", required=True)
+    map_events.set_defaults(func=_cmd_map_events)
 
     return parser
 
@@ -249,6 +288,20 @@ def _cmd_agentic_security_readiness(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_proof_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_proof_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_arena_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_arena_readiness(events).to_dict()))
+    return 0
+
+
 def _cmd_repair_pack(args: argparse.Namespace) -> int:
     events = read_jsonl_events(args.path)
     assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
@@ -298,9 +351,30 @@ def _cmd_eval_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_experiment_manifest(args: argparse.Namespace) -> int:
+    raw_pack = strict_json_loads(
+        Path(args.from_repair_pack).read_text(encoding="utf-8")
+    )
+    if not isinstance(raw_pack, dict):
+        raise ValueError("repair pack must be a JSON object")
+    manifest = build_experiment_manifest(raw_pack, changes=_parse_changes(args.change))
+    if args.output:
+        Path(args.output).write_text(
+            strict_json_dumps(manifest) + "\n", encoding="utf-8"
+        )
+        print(strict_json_dumps({"output": args.output, **manifest}))
+    else:
+        print(strict_json_dumps(manifest))
+    return 0
+
+
 def _cmd_queue_health(args: argparse.Namespace) -> int:
     queue = LocalQueue(Path(args.queue_dir), max_queue_bytes=args.max_queue_bytes)
-    print(strict_json_dumps(asdict(queue.health())))
+    print(
+        strict_json_dumps(
+            asdict(queue.health(max_batch_events=args.max_batch_events))
+        )
+    )
     return 0
 
 
@@ -420,6 +494,12 @@ def _cmd_export_aitrade(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_map_events(args: argparse.Namespace) -> int:
+    summary = export_mapped_events(args.config, args.output)
+    print(strict_json_dumps(summary.to_dict()))
+    return 0
+
+
 def _load_rows_json(path: str) -> dict[str, list[dict[str, Any]]]:
     value = strict_json_loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -434,6 +514,19 @@ def _load_rows_json(path: str) -> dict[str, list[dict[str, Any]]]:
                 raise ValueError(f"{table} contains a non-object row")
             result[table].append(row)
     return result
+
+
+def _parse_changes(changes: list[str]) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for raw in changes:
+        if "=" not in raw:
+            raise ValueError("--change must use key=value")
+        key, value = raw.split("=", maxsplit=1)
+        key = key.strip()
+        if not key:
+            raise ValueError("--change key must be non-empty")
+        parsed[key] = value.strip()
+    return parsed
 
 
 if __name__ == "__main__":

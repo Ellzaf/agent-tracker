@@ -1,0 +1,47 @@
+{
+  "batch_id": "batch_fixture_basic",
+  "sent_at": "2026-06-07T00:02:00Z",
+  "events": [
+    {
+      "schema_version": "2026-06-07",
+      "event_id": "evt_batch_risk_check",
+      "idempotency_key": "fixture/batch/risk-check",
+      "project": "fixture-agent",
+      "agent_id": "fixture",
+      "run_id": "run_batch_fixture",
+      "span_id": null,
+      "parent_span_id": null,
+      "event_type": "risk.check.completed",
+      "occurred_at": "2026-06-07T00:01:00Z",
+      "received_at": null,
+      "environment": "paper",
+      "symbols": ["MSFT"],
+      "payload": {
+        "risk_check_kind": "deterministic",
+        "approved": false,
+        "reasons": ["cash_only_capacity_below_target_notional"],
+        "component": "risk_gate",
+        "severity": "critical",
+        "mistake_family": "portfolio.buying_power_as_cash",
+        "money_impact": "blocked",
+        "blocking_status": "trading_blocked",
+        "resolution_status": "open",
+        "next_safe_action": "block_artifact"
+      },
+      "privacy": {
+        "full_io": false,
+        "redaction_version": "2026-06-07",
+        "contains_prompt_text": false,
+        "contains_output_text": false,
+        "contains_broker_payload": false,
+        "contains_account_identifier": false,
+        "truncated": false
+      },
+      "sdk": {
+        "name": "agent-tracker-python",
+        "version": "0.2.0",
+        "language": "python"
+      }
+    }
+  ]
+}

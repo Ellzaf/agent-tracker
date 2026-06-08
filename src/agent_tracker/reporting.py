@@ -229,6 +229,74 @@ class AgenticSecurityReadiness:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ProofReadiness:
+    """Readiness for a public proof page or trust badge."""
+
+    event_count: int
+    ready: bool
+    environment_modes: tuple[str, ...]
+    risk_gates_present: bool
+    replay_tests_present: bool
+    source_quality_present: bool
+    prompt_or_build_versions_present: bool
+    privacy_safe: bool
+    guarantee_language_present: bool
+    gaps: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_count": self.event_count,
+            "ready": self.ready,
+            "environment_modes": list(self.environment_modes),
+            "risk_gates_present": self.risk_gates_present,
+            "replay_tests_present": self.replay_tests_present,
+            "source_quality_present": self.source_quality_present,
+            "prompt_or_build_versions_present": self.prompt_or_build_versions_present,
+            "privacy_safe": self.privacy_safe,
+            "guarantee_language_present": self.guarantee_language_present,
+            "gaps": list(self.gaps),
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ArenaReadiness:
+    """Readiness for benchmark or market-regime challenge scoring."""
+
+    event_count: int
+    ready: bool
+    scenario_tags_present: bool
+    market_regime_present: bool
+    session_dates_present: bool
+    drawdown_metrics_present: bool
+    survival_metrics_present: bool
+    replay_results_present: bool
+    strategy_tags_present: bool
+    position_state_present: bool
+    portfolio_state_present: bool
+    gaps: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_count": self.event_count,
+            "ready": self.ready,
+            "scenario_tags_present": self.scenario_tags_present,
+            "market_regime_present": self.market_regime_present,
+            "session_dates_present": self.session_dates_present,
+            "drawdown_metrics_present": self.drawdown_metrics_present,
+            "survival_metrics_present": self.survival_metrics_present,
+            "replay_results_present": self.replay_results_present,
+            "strategy_tags_present": self.strategy_tags_present,
+            "position_state_present": self.position_state_present,
+            "portfolio_state_present": self.portfolio_state_present,
+            "gaps": list(self.gaps),
+            "warnings": list(self.warnings),
+        }
+
+
 def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> None:
     """Validate event-specific reporting fields when a reporting event is used."""
 
@@ -606,6 +674,141 @@ def assess_agentic_security_readiness(
     )
 
 
+def assess_proof_readiness(events: Iterable[Mapping[str, Any]]) -> ProofReadiness:
+    """Assess whether telemetry can support a conservative public proof page."""
+
+    event_list = list(events)
+    event_types = {str(event.get("event_type", "")) for event in event_list}
+    payloads = _payloads(event_list)
+    environments = tuple(
+        sorted({str(event.get("environment")) for event in event_list})
+    )
+    gaps: set[str] = set()
+    warnings: set[str] = set()
+
+    risk_gates = "risk.check.completed" in event_types
+    replay_tests = "replay.result.recorded" in event_types
+    source_quality = "source.claim.recorded" in event_types or any(
+        _has_any(payload, {"source_confidence", "source_quality", "claim_type"})
+        for payload in payloads
+    )
+    prompt_or_build_versions = "agent.build.recorded" in event_types or any(
+        _has_any(payload, {"prompt_hash", "prompt_version", "config_hash"})
+        for payload in payloads
+    )
+    privacy_safe = not any(
+        _privacy_flag(event, "contains_prompt_text")
+        or _privacy_flag(event, "contains_output_text")
+        or _privacy_flag(event, "contains_broker_payload")
+        or _privacy_flag(event, "contains_account_identifier")
+        for event in event_list
+    )
+    guarantee_language = any(
+        _contains_guarantee_language(payload) for payload in payloads
+    )
+
+    if not event_list:
+        gaps.add("no_events")
+    if not environments:
+        gaps.add("environment_clarity")
+    if "development" in environments:
+        gaps.add("non_proof_environment")
+    if not risk_gates:
+        gaps.add("risk_gates")
+    if not replay_tests:
+        gaps.add("replay_tests")
+    if not source_quality:
+        gaps.add("source_quality")
+    if not prompt_or_build_versions:
+        gaps.add("prompt_or_build_versions")
+    if not privacy_safe:
+        gaps.add("privacy_safe")
+    if guarantee_language:
+        gaps.add("guarantee_language")
+    if "live_observe" in environments:
+        warnings.add("live_observe_requires_clear_no_execution_claim")
+
+    return ProofReadiness(
+        event_count=len(event_list),
+        ready=not gaps,
+        environment_modes=environments,
+        risk_gates_present=risk_gates,
+        replay_tests_present=replay_tests,
+        source_quality_present=source_quality,
+        prompt_or_build_versions_present=prompt_or_build_versions,
+        privacy_safe=privacy_safe,
+        guarantee_language_present=guarantee_language,
+        gaps=tuple(sorted(gaps)),
+        warnings=tuple(sorted(warnings)),
+    )
+
+
+def assess_arena_readiness(events: Iterable[Mapping[str, Any]]) -> ArenaReadiness:
+    """Assess whether telemetry can support fair benchmark challenge scoring."""
+
+    event_list = list(events)
+    event_types = {str(event.get("event_type", "")) for event in event_list}
+    payloads = _payloads(event_list)
+    gaps: set[str] = set()
+    warnings: set[str] = set()
+
+    scenario_tags = any(_has_any(payload, {"scenario_tags"}) for payload in payloads)
+    market_regime = any(
+        _has_any(payload, {"market_regime", "session_state", "market_phase"})
+        for payload in payloads
+    )
+    session_dates = any(_has_any(payload, {"session_date"}) for payload in payloads)
+    drawdown_metrics = any(
+        _has_any(payload, {"max_drawdown_pct", "drawdown_pct"}) for payload in payloads
+    )
+    survival_metrics = any(
+        _has_any(payload, {"survival_status", "failed_run_count", "case_count"})
+        for payload in payloads
+    )
+    replay_results = "replay.result.recorded" in event_types
+    strategy_tags = any(
+        _has_any(payload, {"strategy_id", "strategy_name", "setup"})
+        for payload in payloads
+    )
+    position_state = "position.snapshot.recorded" in event_types
+    portfolio_state = "portfolio.snapshot.recorded" in event_types
+
+    requirements = {
+        "scenario_tags": scenario_tags,
+        "market_regime": market_regime,
+        "session_dates": session_dates,
+        "drawdown_metrics": drawdown_metrics,
+        "survival_metrics": survival_metrics,
+        "replay_results": replay_results,
+        "strategy_tags": strategy_tags,
+        "position_state": position_state,
+        "portfolio_state": portfolio_state,
+    }
+    for gap, present in requirements.items():
+        if not present:
+            gaps.add(gap)
+    if event_list and not any(
+        event.get("environment") == "replay" for event in event_list
+    ):
+        warnings.add("no_replay_environment_events")
+
+    return ArenaReadiness(
+        event_count=len(event_list),
+        ready=not gaps,
+        scenario_tags_present=scenario_tags,
+        market_regime_present=market_regime,
+        session_dates_present=session_dates,
+        drawdown_metrics_present=drawdown_metrics,
+        survival_metrics_present=survival_metrics,
+        replay_results_present=replay_results,
+        strategy_tags_present=strategy_tags,
+        position_state_present=position_state,
+        portfolio_state_present=portfolio_state,
+        gaps=tuple(sorted(gaps)),
+        warnings=tuple(sorted(warnings)),
+    )
+
+
 def build_repair_pack(
     events: Iterable[Mapping[str, Any]],
     *,
@@ -678,6 +881,48 @@ def build_eval_plan(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "llm_judge_required": False,
         "privacy_policy": "hash_or_reference_only",
         "dataset_event_ids": [item["event_id"] for item in dataset],
+    }
+
+
+def build_experiment_manifest(
+    repair_pack: Mapping[str, Any],
+    *,
+    changes: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic experiment manifest from a local repair pack."""
+
+    declared_changes = dict(changes or {})
+    findings = repair_pack.get("findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    axes = _experiment_axes(findings, declared_changes)
+    warnings: list[str] = []
+    if not declared_changes:
+        warnings.append("no_declared_changes")
+    if len(axes) > 1 and not declared_changes.get("multi_axis_reason"):
+        warnings.append("multi_axis_experiment_requires_explicit_reason")
+    return {
+        "version": "2026-06-08",
+        "source": "agent-tracker-repair-pack",
+        "repair_pack_version": repair_pack.get("version"),
+        "event_count": repair_pack.get("event_count", 0),
+        "finding_count": len(findings),
+        "comparison_axes": axes,
+        "declared_changes": declared_changes,
+        "fixed_context": {
+            "broker_execution": "unchanged",
+            "risk_gate_enforcement": "unchanged_unless_declared_and_tested",
+            "market_data_source": "unchanged_unless_declared",
+            "telemetry_privacy_policy": "hash_or_reference_only",
+        },
+        "required_checks": [
+            "agent-tracker validate-jsonl events.jsonl --profile strict-reporting",
+            "agent-tracker repair-pack events.jsonl --output repair-pack.json",
+            "run repo replay or regression suite for affected findings",
+        ],
+        "llm_judge_required": False,
+        "privacy_policy": "hash_or_reference_only",
+        "warnings": warnings,
     }
 
 
@@ -928,3 +1173,58 @@ def _expected_invariant(event: Mapping[str, Any]) -> str:
     if event_type == "decision.outcome.recorded":
         return "decision_outcome_links_to_evidence"
     return "agent_behavior_preserved"
+
+
+def _contains_guarantee_language(payload: Mapping[str, Any]) -> bool:
+    phrases = {
+        "guaranteed profit",
+        "risk-free",
+        "risk free",
+        "cannot lose",
+        "can't lose",
+        "sure profit",
+        "guaranteed return",
+    }
+    for value in payload.values():
+        if isinstance(value, str):
+            lowered = value.lower()
+            if any(phrase in lowered for phrase in phrases):
+                return True
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, str) and any(
+                    phrase in item.lower() for phrase in phrases
+                ):
+                    return True
+    return False
+
+
+def _experiment_axes(
+    findings: list[Any],
+    declared_changes: Mapping[str, Any],
+) -> list[str]:
+    axes = {
+        str(key).split("_", maxsplit=1)[0]
+        for key, value in declared_changes.items()
+        if value is not None and key != "multi_axis_reason"
+    }
+    for finding in findings:
+        if not isinstance(finding, Mapping):
+            continue
+        text = " ".join(
+            str(finding.get(field, ""))
+            for field in ("finding_id", "target_surface", "message")
+        ).lower()
+        if "prompt" in text:
+            axes.add("prompt")
+        if "risk" in text:
+            axes.add("risk_gate")
+        if "source" in text:
+            axes.add("source_pipeline")
+        if "memory" in text:
+            axes.add("memory_policy")
+        if "tool" in text or "mcp" in text:
+            axes.add("tool_policy")
+        if "cost" in text or "model" in text:
+            axes.add("model_provider")
+    return sorted(axes or {"unspecified"})

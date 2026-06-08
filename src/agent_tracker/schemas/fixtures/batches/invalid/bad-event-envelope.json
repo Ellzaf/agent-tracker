@@ -1,0 +1,36 @@
+{
+  "batch_id": "batch_fixture_bad_event",
+  "sent_at": "2026-06-07T00:02:00Z",
+  "events": [
+    {
+      "schema_version": "2026-06-07",
+      "event_id": "bad_event_id",
+      "idempotency_key": "fixture/batch/bad-event",
+      "project": "fixture-agent",
+      "agent_id": "fixture",
+      "run_id": "run_batch_fixture",
+      "event_type": "risk.check.completed",
+      "occurred_at": "2026-06-07T00:01:00Z",
+      "environment": "paper",
+      "symbols": ["MSFT"],
+      "payload": {
+        "risk_check_kind": "deterministic",
+        "approved": true
+      },
+      "privacy": {
+        "full_io": false,
+        "redaction_version": "2026-06-07",
+        "contains_prompt_text": false,
+        "contains_output_text": false,
+        "contains_broker_payload": false,
+        "contains_account_identifier": false,
+        "truncated": false
+      },
+      "sdk": {
+        "name": "agent-tracker-python",
+        "version": "0.2.0",
+        "language": "python"
+      }
+    }
+  ]
+}

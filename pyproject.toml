@@ -64,8 +64,11 @@ agent_tracker = [
   "prompts/*.md",
   "schemas/*.json",
   "schemas/event-types/*.json",
+  "schemas/fixtures/batches/invalid/*.json",
+  "schemas/fixtures/batches/valid/*.json",
   "schemas/fixtures/invalid/*.json",
   "schemas/fixtures/reporting/*.json",
+  "schemas/fixtures/upload-responses/*.json",
   "schemas/fixtures/valid/*.json",
   "schemas/taxonomies/*.json",
 ]

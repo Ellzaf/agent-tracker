@@ -295,6 +295,27 @@ with tracker.run(run_type="paper_fill", symbols=["NVDA"]) as run:
     )
 ```
 
+Typed payload builders are available when you want IDE help or shared helper
+code:
+
+```python
+from agent_tracker import PaperFillPayload
+
+payload = PaperFillPayload(
+    fill_id="fill_1",
+    position_id="pos_1",
+    symbol="NVDA",
+    side="sell",
+    open_close_effect="close",
+    quantity="2",
+    price="101.00",
+    fees="0.25",
+    session_date="2026-06-07",
+).to_payload()
+
+tracker.event("paper.fill.recorded", run_id="run_fill_1", payload=payload)
+```
+
 Run the readiness check against exported JSONL:
 
 ```bash
@@ -388,12 +409,53 @@ Build local product artifacts:
 ```bash
 agent-tracker tier-readiness ellzaf-reporting.jsonl
 agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker proof-readiness ellzaf-reporting.jsonl
+agent-tracker arena-readiness ellzaf-reporting.jsonl
 agent-tracker repair-pack ellzaf-reporting.jsonl --output repair-pack.json
 agent-tracker dataset-from-events ellzaf-reporting.jsonl --output dataset.jsonl
 agent-tracker eval-plan ellzaf-reporting.jsonl --output eval-plan.json
+agent-tracker experiment-manifest --from-repair-pack repair-pack.json
 ```
 
 These commands are deterministic and local. They do not call an LLM.
+
+## Custom Log Mapping
+
+If your agent already writes JSONL, CSV, JSON arrays, or SQLite logs, you can
+export Ellzaf events with a declarative mapping file.
+
+```toml
+project = "your-dashboard-project-slug"
+agent_id = "local-agent"
+environment = "paper"
+
+[[sources]]
+name = "risk_checks"
+kind = "csv"
+path = "risk_checks.csv"
+event_type = "risk.check.completed"
+run_id_field = "run_id"
+occurred_at_field = "checked_at"
+symbols_field = "symbol"
+
+[sources.payload_defaults]
+risk_check_kind = "deterministic"
+
+[sources.fields]
+approved = { path = "approved", type = "bool" }
+reasons = { path = "reasons", type = "list", required = false }
+```
+
+Run the export and validate it before upload:
+
+```bash
+agent-tracker map-events --config ellzaf-mapping.toml --output ellzaf-events.jsonl
+agent-tracker validate-jsonl ellzaf-events.jsonl --profile strict-reporting
+```
+
+Mapping output goes through normal SDK validation and redaction. Bad rows are
+skipped with sanitized row warnings so one malformed row does not block the
+whole export.
 
 ## Reference-Code Exporter
 
@@ -453,7 +515,10 @@ print(summary.stop_reason)
 
 If the API key is missing, `flush()` leaves events in the local queue and
 returns a skipped summary. If Ellzaf returns a retryable error, the SDK keeps
-the event pending for a later flush.
+the event pending for a later flush with local retry metadata. While a retry
+backoff window is active, `flush()` returns `retry_not_due` and keeps the files
+in place. If another process is already flushing the same queue, `flush()`
+returns `queue_locked` instead of racing the upload.
 
 Check upload configuration without moving queue files:
 
@@ -522,9 +587,13 @@ agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
 agent-tracker reporting-readiness ellzaf-reporting.jsonl
 agent-tracker tier-readiness ellzaf-reporting.jsonl
 agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker proof-readiness ellzaf-reporting.jsonl
+agent-tracker arena-readiness ellzaf-reporting.jsonl
 agent-tracker repair-pack ellzaf-reporting.jsonl --output repair-pack.json
 agent-tracker dataset-from-events ellzaf-reporting.jsonl --output dataset.jsonl
 agent-tracker eval-plan ellzaf-reporting.jsonl --output eval-plan.json
+agent-tracker experiment-manifest --from-repair-pack repair-pack.json
+agent-tracker map-events --config ellzaf-mapping.toml --output ellzaf-events.jsonl
 agent-tracker queue-health
 agent-tracker flush
 agent-tracker flush --drain

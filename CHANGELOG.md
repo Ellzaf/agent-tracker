@@ -10,8 +10,18 @@
 - Added Free, Basic, and Pro tier readiness checks.
 - Added agentic-security readiness checks.
 - Added deterministic local repair packs, dataset extraction, and eval plans.
+- Added proof readiness, arena readiness, and experiment manifest artifacts.
+- Added declarative custom log mapping through `agent-tracker map-events` for
+  JSONL, JSON arrays, CSV, and read-only SQLite queries.
+- Added typed payload builders for reporting-grade trade lifecycle, replay,
+  prompt, build, and strategy events.
+- Added queue upload locking, retry sidecar metadata, backoff-aware pending
+  selection, `Retry-After` support, and last-upload health fields.
+- Added reusable batch and upload-response contract fixtures for SDK and
+  website ingestion CI.
 - Added CLI commands: `tier-readiness`, `agentic-security-readiness`,
-  `repair-pack`, `dataset-from-events`, and `eval-plan`.
+  `proof-readiness`, `arena-readiness`, `repair-pack`, `dataset-from-events`,
+  `eval-plan`, `experiment-manifest`, and `map-events`.
 - Added `py.typed` for type-aware users.
 - Added CI wheel install smoke.
 

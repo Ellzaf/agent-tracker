@@ -1,0 +1,12 @@
+{
+  "accepted": 0,
+  "duplicates": 0,
+  "rejected": [
+    {
+      "event_id": "evt_batch_risk_check",
+      "code": "temporary_limit",
+      "message": "retry later",
+      "retryable": true
+    }
+  ]
+}

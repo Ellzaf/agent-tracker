@@ -635,7 +635,7 @@ class AgentTracker:
     def queue_health(self) -> QueueHealth | None:
         if self.queue is None:
             return None
-        return self.queue.health()
+        return self.queue.health(max_batch_events=self.config.max_batch_events)
 
     def _should_capture(self, event: Mapping[str, Any]) -> bool:
         event_type = str(event.get("event_type", ""))

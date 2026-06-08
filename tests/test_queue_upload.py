@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from agent_tracker import AgentTracker, Config
 from agent_tracker.constants import SDK_USER_AGENT
 from agent_tracker.errors import QueueError
 from agent_tracker.queue import LocalQueue
-from agent_tracker.serialization import strict_json_dumps
+from agent_tracker.serialization import strict_json_dumps, strict_json_loads
 
 
 def test_queue_quarantines_partial_and_corrupt_rows(tmp_path: Path) -> None:
@@ -514,4 +515,100 @@ def test_duplicate_rejected_event_ids_keep_batch_pending(tmp_path: Path) -> None
 
     assert summary.reason_code == "response_count_mismatch"
     assert summary.retryable == 1
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
+
+
+def test_rate_limit_retry_after_defers_pending_event(tmp_path: Path) -> None:
+    calls = 0
+
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes, dict[str, str]]:
+        nonlocal calls
+        calls += 1
+        return 429, b'{"error":"rate limited"}', {"Retry-After": "60"}
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event("risk.check.completed", run_id="run_429", payload={"approved": True})
+
+    first = client.flush()
+    second = client.flush()
+    health = client.queue.health()  # type: ignore[union-attr]
+
+    assert first.reason_code == "rate_limited"
+    assert first.retry_after_seconds == 60
+    assert second.reason_code == "retry_not_due"
+    assert second.retryable == 1
+    assert calls == 1
+    assert health.retryable_pending == 1
+    assert health.next_retry_seconds is not None
+    assert 0 < health.next_retry_seconds <= 60
+    assert health.last_upload_status == "skipped"
+    assert health.last_upload_reason == "retry_not_due"
+
+
+def test_retry_metadata_allows_upload_after_due_time(tmp_path: Path) -> None:
+    calls = 0
+
+    def transport(
+        _url: str, _headers: dict[str, str], body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return 500, b'{"error":"server"}'
+        payload = json.loads(gzip.decompress(body).decode("utf-8"))
+        return (
+            200,
+            json.dumps(
+                {"accepted": len(payload["events"]), "duplicates": 0, "rejected": []}
+            ).encode("utf-8"),
+        )
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event(
+        "risk.check.completed",
+        run_id="run_retry_due",
+        payload={"approved": True},
+    )
+
+    first = client.flush()
+    metadata_path = next((tmp_path / "pending").glob("*.retry.json"))
+    metadata = strict_json_loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["next_retry_at"] = time.time() - 1
+    metadata_path.write_text(strict_json_dumps(metadata) + "\n", encoding="utf-8")
+    second = client.flush()
+
+    assert first.reason_code == "server_error"
+    assert second.accepted == 1
+    assert calls == 2
+    assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 0
+    assert list((tmp_path / "pending").glob("*.retry.json")) == []
+
+
+def test_flush_returns_structured_skip_when_queue_is_locked(tmp_path: Path) -> None:
+    def transport(
+        _url: str, _headers: dict[str, str], _body: bytes, _timeout: float
+    ) -> tuple[int, bytes]:
+        raise AssertionError("locked queue must not upload")
+
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, api_key="project-key"),
+        transport=transport,
+    )
+    client.event("risk.check.completed", run_id="run_lock", payload={"approved": True})
+    assert client.queue is not None
+
+    with client.queue.flush_lock() as acquired:
+        assert acquired is True
+        summary = client.flush()
+
+    assert summary.skipped is True
+    assert summary.reason_code == "queue_locked"
     assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1

@@ -6,9 +6,10 @@ import gzip
 import json
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 from uuid import uuid4
 
@@ -18,7 +19,10 @@ from agent_tracker.errors import UploadError
 from agent_tracker.queue import LocalQueue
 from agent_tracker.serialization import strict_json_dumps, utc_now_iso
 
-Transport = Callable[[str, dict[str, str], bytes, float], tuple[int, bytes]]
+Transport = Callable[
+    [str, dict[str, str], bytes, float],
+    tuple[int, bytes] | tuple[int, bytes, Mapping[str, str]],
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,114 +77,180 @@ class BatchUploader:
         raise_on_error: bool = False,
     ) -> FlushSummary:
         if not self.config.api_key:
-            return FlushSummary(
-                attempted=0,
-                accepted=0,
-                duplicates=0,
-                rejected=0,
-                retryable=0,
-                skipped=True,
-                status="skipped",
-                reason_code="missing_api_key",
-                message="ELLZAF_API_KEY is not configured; events remain queued",
-                dry_run=dry_run,
-            )
-
-        pending = queue.pending(
-            limit=self.config.max_batch_events,
-            max_bytes=self.config.max_batch_bytes,
-        )
-        if not pending:
-            return FlushSummary(0, 0, 0, 0, 0, dry_run=dry_run)
-
-        if dry_run:
-            body = self._batch_body([item.event for item in pending])
-            return FlushSummary(
-                attempted=len(pending),
-                accepted=0,
-                duplicates=0,
-                rejected=0,
-                retryable=0,
-                skipped=True,
-                status="skipped",
-                reason_code="dry_run",
-                message=(
-                    "dry run prepared a valid batch without uploading or moving "
-                    f"queue files ({len(body.body)} bytes)"
+            return _record_and_return(
+                queue,
+                FlushSummary(
+                    attempted=0,
+                    accepted=0,
+                    duplicates=0,
+                    rejected=0,
+                    retryable=0,
+                    skipped=True,
+                    status="skipped",
+                    reason_code="missing_api_key",
+                    message="ELLZAF_API_KEY is not configured; events remain queued",
+                    dry_run=dry_run,
                 ),
-                batch_count=1,
-                dry_run=True,
             )
+        with queue.flush_lock(timeout_seconds=0.0) as acquired:
+            if not acquired:
+                return FlushSummary(
+                    attempted=0,
+                    accepted=0,
+                    duplicates=0,
+                    rejected=0,
+                    retryable=0,
+                    skipped=True,
+                    status="skipped",
+                    reason_code="queue_locked",
+                    message="local queue is already being flushed",
+                    dry_run=dry_run,
+                )
 
-        try:
-            response = self._post_batch([item.event for item in pending])
-        except UploadError as exc:
-            if raise_on_error:
-                raise
-            return _summary_from_upload_error(exc, attempted=len(pending))
+            pending = queue.pending(
+                limit=self.config.max_batch_events,
+                max_bytes=self.config.max_batch_bytes,
+            )
+            if not pending:
+                health = queue.health(max_batch_events=self.config.max_batch_events)
+                if health.pending and health.retryable_pending:
+                    return _record_and_return(
+                        queue,
+                        FlushSummary(
+                            attempted=0,
+                            accepted=0,
+                            duplicates=0,
+                            rejected=0,
+                            retryable=health.retryable_pending,
+                            skipped=True,
+                            status="skipped",
+                            reason_code="retry_not_due",
+                            message="pending events are waiting for retry backoff",
+                            retry_after_seconds=health.next_retry_seconds,
+                            dry_run=dry_run,
+                        ),
+                    )
+                return _record_and_return(
+                    queue,
+                    FlushSummary(0, 0, 0, 0, 0, dry_run=dry_run),
+                )
 
-        accounted_for = response.accepted + response.duplicates + len(response.rejected)
-        if accounted_for != len(pending):
-            exc = UploadError(
-                "server response did not account for every event",
-                reason_code="response_count_mismatch",
-                retryable=True,
+            if dry_run:
+                body = self._batch_body([item.event for item in pending])
+                return _record_and_return(
+                    queue,
+                    FlushSummary(
+                        attempted=len(pending),
+                        accepted=0,
+                        duplicates=0,
+                        rejected=0,
+                        retryable=0,
+                        skipped=True,
+                        status="skipped",
+                        reason_code="dry_run",
+                        message=(
+                            "dry run prepared a valid batch without uploading or "
+                            "moving "
+                            f"queue files ({len(body.body)} bytes)"
+                        ),
+                        batch_count=1,
+                        dry_run=True,
+                    ),
+                )
+
+            try:
+                response = self._post_batch([item.event for item in pending])
+            except UploadError as exc:
+                if exc.retryable:
+                    _defer_retryable_batch(queue, pending, exc)
+                if raise_on_error:
+                    raise
+                return _record_and_return(
+                    queue, _summary_from_upload_error(exc, attempted=len(pending))
+                )
+
+            accounted_for = (
+                response.accepted + response.duplicates + len(response.rejected)
             )
-            if raise_on_error:
-                raise exc
-            return _summary_from_upload_error(exc, attempted=len(pending))
-        pending_event_ids = {str(item.event.get("event_id")) for item in pending}
-        rejected_by_id = {
-            item.event_id: item for item in response.rejected if item.event_id
-        }
-        if len(rejected_by_id) != len(response.rejected):
-            exc = UploadError(
-                "server response contained duplicate rejected event IDs",
-                reason_code="duplicate_rejected_event_id",
-                retryable=True,
+            if accounted_for != len(pending):
+                exc = UploadError(
+                    "server response did not account for every event",
+                    reason_code="response_count_mismatch",
+                    retryable=True,
+                )
+                _defer_retryable_batch(queue, pending, exc)
+                if raise_on_error:
+                    raise exc
+                return _record_and_return(
+                    queue, _summary_from_upload_error(exc, attempted=len(pending))
+                )
+            pending_event_ids = {str(item.event.get("event_id")) for item in pending}
+            rejected_by_id = {
+                item.event_id: item for item in response.rejected if item.event_id
+            }
+            if len(rejected_by_id) != len(response.rejected):
+                exc = UploadError(
+                    "server response contained duplicate rejected event IDs",
+                    reason_code="duplicate_rejected_event_id",
+                    retryable=True,
+                )
+                _defer_retryable_batch(queue, pending, exc)
+                if raise_on_error:
+                    raise exc
+                return _record_and_return(
+                    queue, _summary_from_upload_error(exc, attempted=len(pending))
+                )
+            if unknown_rejected_ids := set(rejected_by_id) - pending_event_ids:
+                unknown = ", ".join(sorted(unknown_rejected_ids))
+                exc = UploadError(
+                    f"server rejected unknown event IDs: {unknown}",
+                    reason_code="unknown_rejected_event_id",
+                    retryable=True,
+                )
+                _defer_retryable_batch(queue, pending, exc)
+                if raise_on_error:
+                    raise exc
+                return _record_and_return(
+                    queue, _summary_from_upload_error(exc, attempted=len(pending))
+                )
+            duplicates = response.duplicates
+            retryable = 0
+            permanent = 0
+            for item in pending:
+                event_id = str(item.event.get("event_id"))
+                rejection = rejected_by_id.get(event_id)
+                if rejection is None:
+                    queue.mark_uploaded(item)
+                    continue
+                if rejection.retryable:
+                    retryable += 1
+                    queue.defer_retry(
+                        item,
+                        reason=rejection.code,
+                        retry_after_seconds=None,
+                        fallback_delay_seconds=_backoff_delay_seconds(item),
+                    )
+                    continue
+                permanent += 1
+                queue.mark_failed(item, permanent=True)
+            return _record_and_return(
+                queue,
+                FlushSummary(
+                    attempted=len(pending),
+                    accepted=response.accepted,
+                    duplicates=duplicates,
+                    rejected=len(response.rejected),
+                    retryable=retryable,
+                    status="partial" if response.rejected else "succeeded",
+                    reason_code="partial_rejection" if response.rejected else None,
+                    message=None
+                    if not response.rejected
+                    else "server rejected one or more events",
+                    batch_count=1,
+                    permanent_rejections=permanent,
+                    retryable_rejections=retryable,
+                ),
             )
-            if raise_on_error:
-                raise exc
-            return _summary_from_upload_error(exc, attempted=len(pending))
-        if unknown_rejected_ids := set(rejected_by_id) - pending_event_ids:
-            unknown = ", ".join(sorted(unknown_rejected_ids))
-            exc = UploadError(
-                f"server rejected unknown event IDs: {unknown}",
-                reason_code="unknown_rejected_event_id",
-                retryable=True,
-            )
-            if raise_on_error:
-                raise exc
-            return _summary_from_upload_error(exc, attempted=len(pending))
-        duplicates = response.duplicates
-        retryable = 0
-        permanent = 0
-        for item in pending:
-            event_id = str(item.event.get("event_id"))
-            rejection = rejected_by_id.get(event_id)
-            if rejection is None:
-                queue.mark_uploaded(item)
-                continue
-            if rejection.retryable:
-                retryable += 1
-                continue
-            permanent += 1
-            queue.mark_failed(item, permanent=True)
-        return FlushSummary(
-            attempted=len(pending),
-            accepted=response.accepted,
-            duplicates=duplicates,
-            rejected=len(response.rejected),
-            retryable=retryable,
-            status="partial" if response.rejected else "succeeded",
-            reason_code="partial_rejection" if response.rejected else None,
-            message=None
-            if not response.rejected
-            else "server rejected one or more events",
-            batch_count=1,
-            permanent_rejections=permanent,
-            retryable_rejections=retryable,
-        )
 
     def flush_all(
         self,
@@ -232,12 +302,13 @@ class BatchUploader:
     def _post_batch(self, events: list[dict[str, Any]]) -> _UploadResponse:
         batch = self._batch_body(events)
         self._enforce_upload_byte_budget(len(batch.body))
-        status, raw = self.transport(
+        raw_response = self.transport(
             f"{self.config.endpoint}/v1/events/batch",
             batch.headers,
             batch.body,
             self.config.http_timeout_seconds,
         )
+        status, raw, response_headers = _transport_response(raw_response)
         self._record_uploaded_bytes(len(batch.body))
         if status == 429:
             raise UploadError(
@@ -245,7 +316,7 @@ class BatchUploader:
                 reason_code="rate_limited",
                 retryable=True,
                 status_code=status,
-                retry_after_seconds=_retry_after_seconds(batch.headers),
+                retry_after_seconds=_retry_after_seconds(response_headers),
             )
         if status >= 500:
             raise UploadError(
@@ -477,8 +548,66 @@ def _stopped_summary(
     )
 
 
-def _retry_after_seconds(_headers: dict[str, str]) -> float | None:
-    return None
+def _record_and_return(queue: LocalQueue, summary: FlushSummary) -> FlushSummary:
+    queue.record_upload_attempt(
+        status=summary.status,
+        reason_code=summary.reason_code,
+    )
+    return summary
+
+
+def _defer_retryable_batch(
+    queue: LocalQueue,
+    pending: list[Any],
+    exc: UploadError,
+) -> None:
+    for item in pending:
+        queue.defer_retry(
+            item,
+            reason=exc.reason_code or "retryable_upload_failure",
+            retry_after_seconds=exc.retry_after_seconds,
+            fallback_delay_seconds=_backoff_delay_seconds(item),
+        )
+
+
+def _backoff_delay_seconds(item: Any) -> float:
+    attempt = max(1, int(getattr(item, "attempt_count", 0)) + 1)
+    event_id = str(getattr(item, "event", {}).get("event_id", ""))
+    base = min(300.0, float(2 ** min(attempt - 1, 8)))
+    jitter = (sum(ord(char) for char in event_id) % 1000) / 1000
+    return base + jitter
+
+
+def _transport_response(
+    response: tuple[int, bytes] | tuple[int, bytes, Mapping[str, str]],
+) -> tuple[int, bytes, Mapping[str, str]]:
+    if len(response) == 2:
+        status, raw = response
+        return status, raw, {}
+    status, raw, headers = response
+    return status, raw, headers
+
+
+def _retry_after_seconds(headers: Mapping[str, str]) -> float | None:
+    raw = None
+    for key, value in headers.items():
+        if key.lower() == "retry-after":
+            raw = value
+            break
+    if raw is None:
+        return None
+    stripped = raw.strip()
+    try:
+        seconds = float(stripped)
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(stripped)
+        except (TypeError, ValueError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        return max(0.0, (retry_at.astimezone(UTC) - datetime.now(UTC)).total_seconds())
+    return max(0.0, seconds)
 
 
 def urllib_transport(
@@ -486,12 +615,12 @@ def urllib_transport(
     headers: dict[str, str],
     body: bytes,
     timeout: float,
-) -> tuple[int, bytes]:
+) -> tuple[int, bytes, Mapping[str, str]]:
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return int(response.status), response.read()
+            return int(response.status), response.read(), dict(response.headers.items())
     except urllib.error.HTTPError as exc:
-        return int(exc.code), exc.read()
+        return int(exc.code), exc.read(), dict(exc.headers.items())
     except OSError as exc:
         raise UploadError(str(exc)) from exc

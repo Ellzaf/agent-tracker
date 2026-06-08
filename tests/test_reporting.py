@@ -9,10 +9,13 @@ from agent_tracker import AgentTracker, Config
 from agent_tracker.errors import SchemaValidationError
 from agent_tracker.reporting import (
     assess_agentic_security_readiness,
+    assess_arena_readiness,
+    assess_proof_readiness,
     assess_reporting_readiness,
     assess_tier_readiness,
     build_dataset_items,
     build_eval_plan,
+    build_experiment_manifest,
     build_repair_pack,
 )
 from agent_tracker.resources import list_resource_names, read_json_resource
@@ -279,6 +282,51 @@ def test_repair_pack_dataset_and_eval_plan_are_deterministic() -> None:
     assert dataset[0]["expected_invariant"]
     assert plan["dataset_item_count"] == len(dataset)
     assert plan["llm_judge_required"] is False
+
+
+def test_proof_and_arena_readiness_reports_gaps_and_ready_state() -> None:
+    events = [
+        read_json_resource("schemas", "fixtures", "reporting", name)
+        for name in list_resource_names("schemas", "fixtures", "reporting")
+    ]
+
+    proof = assess_proof_readiness(events)
+    arena = assess_arena_readiness(events)
+
+    assert proof.ready is True
+    assert proof.risk_gates_present is True
+    assert proof.replay_tests_present is True
+    assert proof.guarantee_language_present is False
+    assert arena.ready is False
+    assert "portfolio_state" in arena.gaps
+
+    unsafe = dict(events[0])
+    unsafe["payload"] = {
+        "run_type": "proof",
+        "note": "guaranteed profit with no risk-free drawdown",
+    }
+    unsafe["event_type"] = "agent.run.started"
+    proof_with_claim = assess_proof_readiness([unsafe])
+    assert proof_with_claim.guarantee_language_present is True
+    assert "guarantee_language" in proof_with_claim.gaps
+
+
+def test_experiment_manifest_is_deterministic_and_requires_declared_changes() -> None:
+    events = [
+        read_json_resource("schemas", "fixtures", "valid", "stale-market-tape.json"),
+        read_json_resource("schemas", "fixtures", "reporting", "risk-check.json"),
+    ]
+    pack = build_repair_pack(events)
+
+    empty_manifest = build_experiment_manifest(pack)
+    changed_manifest = build_experiment_manifest(
+        pack, changes={"prompt_version": "2026-06-08"}
+    )
+
+    assert empty_manifest["warnings"] == ["no_declared_changes"]
+    assert "prompt" in changed_manifest["comparison_axes"]
+    assert changed_manifest["declared_changes"] == {"prompt_version": "2026-06-08"}
+    assert changed_manifest["fixed_context"]["broker_execution"] == "unchanged"
 
 
 @pytest.mark.parametrize(

@@ -106,6 +106,36 @@ def test_cli_flush_dry_run_does_not_move_queue_files(
     assert len(list((tmp_path / "queue" / "pending").glob("*.jsonl"))) == 1
 
 
+def test_cli_queue_health_reports_estimated_batches(
+    tmp_path: Path,
+    capsys: object,
+) -> None:
+    client = AgentTracker(Config(project="paper-agent", queue_dir=tmp_path / "queue"))
+    for index in range(3):
+        client.event(
+            "risk.check.completed",
+            run_id=f"run_health_{index}",
+            payload={"approved": True},
+        )
+
+    assert (
+        main(
+            [
+                "queue-health",
+                "--queue-dir",
+                str(tmp_path / "queue"),
+                "--max-batch-events",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert output["pending"] == 3
+    assert output["estimated_batches_remaining"] == 2
+
+
 def test_cli_emit_reporting_sample_validate_and_show_readiness(
     tmp_path: Path, capsys: object
 ) -> None:
@@ -132,6 +162,14 @@ def test_cli_emit_reporting_sample_validate_and_show_readiness(
     security = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
     assert "gaps" in security
 
+    assert main(["proof-readiness", str(path)]) == 0
+    proof = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert proof["risk_gates_present"] is True
+
+    assert main(["arena-readiness", str(path)]) == 0
+    arena = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert "gaps" in arena
+
     repair_output = tmp_path / "repair.json"
     prompt_output = tmp_path / "repair.md"
     assert (
@@ -150,6 +188,25 @@ def test_cli_emit_reporting_sample_validate_and_show_readiness(
     repair_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
     assert repair_summary["output"] == str(repair_output)
     assert "Preserve trading behavior" in prompt_output.read_text(encoding="utf-8")
+
+    experiment_output = tmp_path / "experiment.json"
+    assert (
+        main(
+            [
+                "experiment-manifest",
+                "--from-repair-pack",
+                str(repair_output),
+                "--output",
+                str(experiment_output),
+                "--change",
+                "prompt_version=2026-06-08",
+            ]
+        )
+        == 0
+    )
+    experiment_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert experiment_summary["output"] == str(experiment_output)
+    assert experiment_summary["declared_changes"]["prompt_version"] == "2026-06-08"
 
     dataset_output = tmp_path / "dataset.jsonl"
     assert (
