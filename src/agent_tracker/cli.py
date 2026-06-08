@@ -118,7 +118,9 @@ def _cmd_init(args: argparse.Namespace) -> int:
     path.write_text(
         "\n".join(
             [
-                'ELLZAF_PROJECT="my-paper-agent"',
+                "# Use the Project slug shown in the Ellzaf Monitoring dashboard.",
+                'ELLZAF_PROJECT="your-dashboard-project-slug"',
+                "# Use the Tracker ingestion key shown once in the dashboard.",
                 'ELLZAF_API_KEY=""',
                 'ELLZAF_ENVIRONMENT="paper"',
                 'ELLZAF_AGENT_ID="local-agent"',

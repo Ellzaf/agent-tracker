@@ -102,11 +102,16 @@ agent-tracker init
 Then set your project values:
 
 ```bash
-export ELLZAF_PROJECT="my-paper-agent"
-export ELLZAF_API_KEY="your-project-ingestion-key"
+export ELLZAF_PROJECT="your-dashboard-project-slug"
+export ELLZAF_API_KEY="your-tracker-ingestion-key"
 export ELLZAF_ENVIRONMENT="paper"
 export ELLZAF_AGENT_ID="local-agent"
 ```
+
+Use the **Project slug** shown in the Ellzaf Monitoring dashboard for
+`ELLZAF_PROJECT`. Do not use the display name if it differs from the slug. Use
+the Tracker ingestion key shown once when you create or rotate the project key
+for `ELLZAF_API_KEY`.
 
 Common optional settings:
 
@@ -115,6 +120,9 @@ export ELLZAF_QUEUE_DIR=".ellzaf/queue"
 export ELLZAF_TELEMETRY_ENABLED="true"
 export ELLZAF_STORE_FULL_IO="false"
 ```
+
+The default upload endpoint is `https://ellzaf.com/v1/events/batch`. Only set
+`ELLZAF_ENDPOINT` if Ellzaf support gives you a different base URL.
 
 Supported environments:
 
