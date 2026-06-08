@@ -21,6 +21,13 @@
   `ELLZAF_DEDUPE_IDEMPOTENCY_KEYS`.
 - Added reusable batch and upload-response contract fixtures for SDK and
   website ingestion CI.
+- Hardened queue dedupe accounting so duplicate pending events do not consume
+  local capture budgets.
+- Hardened SQLite mapping validation against mutating SQL text before query
+  execution.
+- Replaced tracker redaction fixtures with clearly fake test-only keys.
+- Added a 1,200-row custom-agent mapping release matrix on top of existing
+  generated event and taxonomy matrices.
 - Added CLI commands: `tier-readiness`, `agentic-security-readiness`,
   `proof-readiness`, `arena-readiness`, `repair-pack`, `dataset-from-events`,
   `eval-plan`, `experiment-manifest`, and `map-events`.

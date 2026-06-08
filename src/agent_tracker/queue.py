@@ -26,6 +26,12 @@ class QueueEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class EnqueueResult:
+    path: Path
+    duplicate: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class QueueHealth:
     pending: int
     uploaded: int
@@ -81,18 +87,29 @@ class LocalQueue:
         *,
         dedupe_idempotency_key: bool = False,
     ) -> Path:
+        return self.enqueue_result(
+            event,
+            dedupe_idempotency_key=dedupe_idempotency_key,
+        ).path
+
+    def enqueue_result(
+        self,
+        event: dict[str, Any],
+        *,
+        dedupe_idempotency_key: bool = False,
+    ) -> EnqueueResult:
         if dedupe_idempotency_key and (
             existing := self._pending_idempotency_key_path(
                 str(event.get("idempotency_key") or "")
             )
         ):
-            return existing
+            return EnqueueResult(path=existing, duplicate=True)
         event_id = str(event.get("event_id") or "unknown")
         line = strict_json_dumps(event) + "\n"
         self._enforce_disk_cap(extra_bytes=len(line.encode("utf-8")))
         final_path = _queue_path(self.pending_dir, event_id)
         _atomic_write_text(final_path, line)
-        return final_path
+        return EnqueueResult(path=final_path, duplicate=False)
 
     def quarantine(self, event: dict[str, Any], *, reason: str) -> Path:
         event_id = str(event.get("event_id") or "unknown")

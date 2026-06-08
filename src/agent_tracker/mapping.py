@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import re
 import sqlite3
 import tomllib
 from collections.abc import Mapping, Sequence
@@ -283,6 +284,8 @@ def _read_sqlite_rows(
         )
     if ";" in query.rstrip(";"):
         raise MappingError("sqlite_query.query must contain one statement")
+    if _MUTATING_SQL_RE.search(query):
+        raise MappingError("sqlite_query.query must not contain mutating SQL")
     params = source.get("params") or []
     if not isinstance(params, Sequence) or isinstance(params, str | bytes):
         raise MappingError("sqlite_query.params must be an array when provided")
@@ -464,3 +467,8 @@ _BOOLEAN_FIELDS = {
 }
 
 _FIELD_TYPES = {"text", "bool", "int", "float", "list", "json", "number_string"}
+
+_MUTATING_SQL_RE = re.compile(
+    r"\b(attach|alter|create|delete|detach|drop|insert|pragma|replace|update|vacuum)\b",
+    re.IGNORECASE,
+)

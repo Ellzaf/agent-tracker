@@ -54,6 +54,40 @@ def test_queue_can_dedupe_pending_idempotency_keys(tmp_path: Path) -> None:
     assert len(list((tmp_path / "pending").glob("*.jsonl"))) == 1
 
 
+def test_client_dedupe_does_not_consume_run_event_budget(tmp_path: Path) -> None:
+    client = AgentTracker(
+        Config(
+            project="paper-agent",
+            queue_dir=tmp_path,
+            dedupe_idempotency_keys=True,
+            max_events_per_run=2,
+        )
+    )
+
+    first = client.event(
+        "risk.check.completed",
+        run_id="run_dedupe_budget",
+        idempotency_key="same-risk-check",
+        payload={"approved": True},
+    )
+    second = client.event(
+        "risk.check.completed",
+        run_id="run_dedupe_budget",
+        idempotency_key="same-risk-check",
+        payload={"approved": True},
+    )
+    third = client.event(
+        "error.recorded",
+        run_id="run_dedupe_budget",
+        payload={"error_kind": "runtime", "message": "still captured"},
+    )
+
+    pending = list((tmp_path / "pending").glob("*.jsonl"))
+    assert first["idempotency_key"] == second["idempotency_key"]
+    assert len(pending) == 2
+    assert third["event_type"] == "error.recorded"
+
+
 def test_queue_rejects_event_that_would_exceed_disk_cap(tmp_path: Path) -> None:
     first_event = {"event_id": "evt_first"}
     first_event_bytes = len((strict_json_dumps(first_event) + "\n").encode("utf-8"))

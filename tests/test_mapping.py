@@ -19,7 +19,7 @@ from agent_tracker.testing import assert_valid_agent_tracker_events
 def test_mapping_exports_jsonl_rows_with_validation_and_redaction(
     tmp_path: Path,
 ) -> None:
-    key = "ellzaf_trk_mEwmt6sY0vVFHE8vOPWCkLKnzfyGFnQgLZo1B7qM"
+    key = "ellzaf_trk_TESTONLY000000000000000000000000"
     rows = tmp_path / "risk.jsonl"
     rows.write_text(
         "\n".join(
@@ -240,4 +240,9 @@ def test_mapping_rejects_unsafe_paths_and_mutating_sql(tmp_path: Path) -> None:
     }
 
     with pytest.raises(MappingError, match="read-only"):
+        events_from_mapping_config(config, root=tmp_path)
+
+    config["sources"][0]["query"] = "with doomed as (delete from events) select 1"
+
+    with pytest.raises(MappingError, match="mutating SQL"):
         events_from_mapping_config(config, root=tmp_path)
