@@ -1,0 +1,32 @@
+# Changelog
+
+## 0.2.0 - 2026-06-08
+
+- Added wrapper-first integration tools: `trace(..., flush_after=True)`,
+  `wrap_agent`, `instrument`, domain wrappers, auto-flush helpers, and
+  `doctor-repo --write-plan`.
+- Added custom-agent coding prompt through
+  `agent-tracker print-agent-prompt --profile custom`.
+- Added Free, Basic, and Pro tier readiness checks.
+- Added agentic-security readiness checks.
+- Added deterministic local repair packs, dataset extraction, and eval plans.
+- Added CLI commands: `tier-readiness`, `agentic-security-readiness`,
+  `repair-pack`, `dataset-from-events`, and `eval-plan`.
+- Added `py.typed` for type-aware users.
+- Added CI wheel install smoke.
+
+## 0.1.2 - 2026-06-08
+
+- Added `flush_all()` and CLI `flush --drain`.
+- Added `flush --dry-run` and `doctor-upload`.
+- Added actionable upload summaries with status, reason codes, retry counts,
+  and stop reasons.
+- Added configurable gzip, local sampling, event budgets, and upload-byte
+  budgets.
+- Added explicit redaction for `ellzaf_trk_...` tracker ingestion keys.
+- Improved queue health with pending age and failed/quarantined byte counts.
+- Clarified endpoint configuration in the README.
+
+## 0.1.1 - 2026-06-08
+
+- Initial public package release workflow and SDK foundation.

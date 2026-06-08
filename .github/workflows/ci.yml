@@ -67,3 +67,11 @@ jobs:
 
       - name: Check package metadata
         run: python -m twine check dist/*
+
+      - name: Smoke install wheel
+        run: |
+          python -m venv /tmp/agent-tracker-wheel-smoke
+          /tmp/agent-tracker-wheel-smoke/bin/python -m pip install dist/*.whl
+          /tmp/agent-tracker-wheel-smoke/bin/python -c "import agent_tracker; print(agent_tracker.__version__)"
+          /tmp/agent-tracker-wheel-smoke/bin/agent-tracker --help
+          /tmp/agent-tracker-wheel-smoke/bin/agent-tracker print-agent-prompt --profile custom

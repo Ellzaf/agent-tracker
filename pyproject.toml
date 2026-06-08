@@ -60,6 +60,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 agent_tracker = [
+  "py.typed",
   "prompts/*.md",
   "schemas/*.json",
   "schemas/event-types/*.json",

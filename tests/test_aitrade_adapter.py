@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agent_tracker.adapters import AgentTrackerAdapter
 from agent_tracker.adapters.aitrade import AitradeExporter
 from agent_tracker.sink import read_jsonl_events
 from agent_tracker.testing import assert_valid_agent_tracker_events
@@ -10,12 +11,15 @@ from agent_tracker.testing import assert_valid_agent_tracker_events
 def test_aitrade_exporter_maps_rows_to_valid_stable_events(tmp_path: Path) -> None:
     rows = _rows()
     exporter = AitradeExporter(project="paper-agent", agent_id="starter")
+    adapter: AgentTrackerAdapter = exporter
 
-    first_events, first_summary = exporter.events_from_rows(rows)
-    second_events, second_summary = exporter.events_from_rows(rows)
+    first_events, first_summary = adapter.events_from_rows(rows)
+    second_events, second_summary = adapter.events_from_rows(rows)
 
     assert first_summary.exported == len(first_events)
     assert first_summary.report.repo_profile == "aitrade"
+    assert exporter.name == "aitrade"
+    assert exporter.profile == "aitrade"
     assert [event["event_id"] for event in first_events] == [
         event["event_id"] for event in second_events
     ]

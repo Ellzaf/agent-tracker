@@ -80,6 +80,9 @@ class AitradeExportSummary:
 class AitradeExporter:
     """Map reference-code artifact rows into Ellzaf events."""
 
+    name = "aitrade"
+    profile = "aitrade"
+
     def __init__(
         self,
         *,
