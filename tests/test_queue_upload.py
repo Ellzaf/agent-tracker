@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from agent_tracker import AgentTracker, Config
+from agent_tracker.constants import SDK_USER_AGENT
 from agent_tracker.errors import QueueError
 from agent_tracker.queue import LocalQueue
 from agent_tracker.serialization import strict_json_dumps
@@ -106,6 +107,7 @@ def test_flush_uploads_accepted_batch_and_moves_files(tmp_path: Path) -> None:
     assert captured["headers"]["Content-Type"] == "application/json"  # type: ignore[index]
     assert captured["headers"]["Content-Encoding"] == "gzip"  # type: ignore[index]
     assert captured["headers"]["Idempotency-Key"] == captured["payload"]["batch_id"]  # type: ignore[index]
+    assert captured["headers"]["User-Agent"] == SDK_USER_AGENT  # type: ignore[index]
     assert captured["payload"]["sent_at"]  # type: ignore[index]
     assert len(captured["payload"]["events"]) == 1  # type: ignore[index]
     assert (tmp_path / "pending").exists()

@@ -2,6 +2,7 @@
 
 from agent_tracker.client import AgentTracker, Run
 from agent_tracker.config import Config
+from agent_tracker.constants import SDK_VERSION as __version__
 from agent_tracker.errors import (
     AgentTrackerError,
     QueueError,
@@ -32,8 +33,7 @@ __all__ = [
     "SchemaValidationError",
     "SourceRef",
     "UploadError",
+    "__version__",
     "assess_reporting_readiness",
     "emit_integration_report",
 ]
-
-__version__ = "0.1.0"

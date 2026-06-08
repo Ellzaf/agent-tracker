@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from agent_tracker.config import Config
+from agent_tracker.constants import SDK_USER_AGENT
 from agent_tracker.errors import UploadError
 from agent_tracker.queue import LocalQueue
 from agent_tracker.serialization import strict_json_dumps, utc_now_iso
@@ -113,7 +114,7 @@ class BatchUploader:
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
             "Idempotency-Key": batch_id,
-            "User-Agent": "agent-tracker-python/0.1.0",
+            "User-Agent": SDK_USER_AGENT,
         }
         if self.gzip_enabled:
             body = gzip.compress(body)
