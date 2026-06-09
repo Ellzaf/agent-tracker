@@ -53,7 +53,10 @@ Add richer events when you want hosted stats and weekly repair prompts.
 | Search, tools, citations | `tool.call.completed`, `source.claim.recorded` |
 | Market data and freshness | `market.snapshot.recorded` |
 | Memory or context reads | `memory.read.completed` |
+| Candidate boards and reviewed opportunities | `opportunity.board.recorded`, `opportunity.candidate.reviewed` |
+| Setup regimes and entry permissions | `setup.profile.recorded` |
 | Proposed allocation or action | `decision.proposed` |
+| Planned, skipped, clipped, or deferred actions | `action.outcome.recorded` |
 | Planned order before execution | `order.intent.recorded` |
 | Risk checks and blocked actions | `risk.check.completed`, `trade.rejected` |
 | Paper, shadow, or replay fills | `paper.fill.recorded` |
@@ -62,6 +65,7 @@ Add richer events when you want hosted stats and weekly repair prompts.
 | P&L, returns, drawdown | `performance.snapshot.recorded` |
 | Replay or regression tests | `replay.result.recorded` |
 | Strategy, setup, market regime | `strategy.context.recorded` |
+| Same-input model or agent comparisons | `evaluation.epoch.started`, `evaluation.epoch.member.completed` |
 | Build, config, risk-gate version | `agent.build.recorded` |
 | Cost and errors | `cost.usage.recorded`, `error.recorded` |
 
@@ -215,6 +219,70 @@ with tracker.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as r
     run.final_action(action="no_order", reason="risk_gate_rejected")
 
 tracker.flush_all()
+```
+
+Record opportunity diagnostics when your agent builds a board, candidate packet,
+or shortlist before the model decides:
+
+```python
+with tracker.run(run_type="portfolio_allocation", symbols=["NVDA"]) as run:
+    run.opportunity_board(
+        board_id="board_20260609_001",
+        scope="full_universe",
+        source="stored_bars",
+        candidate_count="48",
+        reviewed_count="12",
+        excluded_count="3",
+    )
+
+    run.candidate_review(
+        candidate_id="candidate_NVDA_001",
+        board_id="board_20260609_001",
+        symbol="NVDA",
+        review_status="optimizer_skipped",
+        reason_code="turnover_capacity",
+    )
+
+    run.setup_profile(
+        setup_profile_id="setup_NVDA_001",
+        symbol="NVDA",
+        primary_regime="trend_continuation",
+        entry_permission="eligible_starter",
+        trend_quality_score="81",
+    )
+
+    run.action_outcome(
+        action_id="action_NVDA_001",
+        action_kind="rebalance",
+        status="clipped",
+        symbol="NVDA",
+        requested_notional="1000.00",
+        executed_notional="600.00",
+        clipped=True,
+    )
+```
+
+Use evaluation epochs when you compare several models, prompts, or agent
+profiles on the same input snapshot:
+
+```python
+with tracker.run(run_type="shadow_comparison") as run:
+    run.evaluation_epoch(
+        epoch_id="epoch_20260609_001",
+        epoch_kind="model_comparison",
+        context_hash="sha256:...",
+        expected_member_count=3,
+        candidate_count=48,
+    )
+
+    run.evaluation_epoch_member(
+        epoch_id="epoch_20260609_001",
+        member_id="model_a",
+        expected=True,
+        state="completed",
+        coverage_penalty="0",
+        scored=True,
+    )
 ```
 
 For a smaller transition, wrap one function and let the SDK flush after the run:
@@ -543,6 +611,14 @@ By default `doctor-upload` prepares a diagnostic batch without using the
 network. Pass `--live` only when you want to send the diagnostic event to
 Ellzaf.
 
+Use `canary` for the same production-ingestion contract check with canary
+labeling:
+
+```bash
+agent-tracker canary
+agent-tracker canary --live
+```
+
 Disable queue writes and uploads:
 
 ```bash
@@ -605,11 +681,12 @@ agent-tracker flush
 agent-tracker flush --drain
 agent-tracker flush --dry-run
 agent-tracker doctor-upload
+agent-tracker canary
 ```
 
-Only `flush` and `doctor-upload --live` use the network. The other commands
-inspect local files, print package prompts, validate JSONL, or prepare dry-run
-batches.
+Only `flush`, `doctor-upload --live`, and `canary --live` use the network. The
+other commands inspect local files, print package prompts, validate JSONL, or
+prepare dry-run batches.
 
 ## Development
 

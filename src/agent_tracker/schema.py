@@ -15,6 +15,7 @@ from agent_tracker.constants import (
 )
 from agent_tracker.errors import SchemaValidationError
 from agent_tracker.reporting import (
+    DIAGNOSTIC_REQUIRED_PAYLOAD_FIELDS,
     REPORTING_REQUIRED_PAYLOAD_FIELDS,
     validate_reporting_payload,
 )
@@ -41,6 +42,7 @@ EVENT_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
     "cost.usage.recorded": {"provider", "usage_kind", "quantity"},
     "error.recorded": {"error_kind", "message"},
     **REPORTING_REQUIRED_PAYLOAD_FIELDS,
+    **DIAGNOSTIC_REQUIRED_PAYLOAD_FIELDS,
 }
 
 

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/setup.profile.recorded.schema.json",
+  "title": "setup.profile.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "scoreNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "maximum": 100 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:100(?:\\.0+)?|(?:[0-9]|[1-9][0-9])(?:\\.[0-9]+)?|\\.[0-9]+)$"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "setup.profile.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["setup_profile_id", "primary_regime", "entry_permission"],
+          "properties": {
+            "setup_profile_id": { "type": "string", "minLength": 1 },
+            "symbol": { "type": "string" },
+            "setup": { "type": "string" },
+            "primary_regime": {
+              "enum": [
+                "trend_continuation",
+                "breakout_retest",
+                "ma_band_range_trade",
+                "false_breakout_prone",
+                "falling_knife_reversal_pending",
+                "overextended_momentum",
+                "stale_or_research_blocked",
+                "wait",
+                "custom"
+              ]
+            },
+            "entry_permission": {
+              "enum": [
+                "eligible_starter",
+                "eligible_scale_add",
+                "wait_for_retest",
+                "range_trade_only",
+                "research_first",
+                "avoid_new_buy",
+                "risk_review_only",
+                "custom"
+              ]
+            },
+            "allowed_entry_modes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "blocked_entry_modes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "trend_quality_score": { "$ref": "#/$defs/scoreNumber" },
+            "range_quality_score": { "$ref": "#/$defs/scoreNumber" },
+            "false_breakout_score": { "$ref": "#/$defs/scoreNumber" },
+            "falling_knife_score": { "$ref": "#/$defs/scoreNumber" },
+            "recommended_starter_cap_pct": { "$ref": "#/$defs/nonNegativeNumber" },
+            "invalidation_reference": { "type": "string" }
+          }
+        }
+      }
+    }
+  ]
+}

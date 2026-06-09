@@ -51,10 +51,39 @@ def payload_for(event_type: str, variant: int) -> dict:
             "freshness_seconds": variant,
         },
         "memory.read.completed": {"memory_kind": "lesson", "purpose": "allocation"},
+        "opportunity.board.recorded": {
+            "board_id": f"board_{variant}",
+            "scope": "full_universe",
+            "candidate_count": variant,
+            "reviewed_count": variant,
+        },
+        "opportunity.candidate.reviewed": {
+            "candidate_id": f"candidate_{variant}",
+            "board_id": f"board_{variant}",
+            "symbol": "msft",
+            "review_status": "optimizer_skipped",
+            "reason_code": "capacity_limit",
+        },
+        "setup.profile.recorded": {
+            "setup_profile_id": f"setup_profile_{variant}",
+            "symbol": "msft",
+            "primary_regime": "trend_continuation",
+            "entry_permission": "eligible_starter",
+            "trend_quality_score": "72",
+        },
         "decision.proposed": {
             "decision_kind": "target_weight",
             "action": "increase",
             "symbol": "msft",
+        },
+        "action.outcome.recorded": {
+            "action_id": f"action_{variant}",
+            "action_kind": "rebalance",
+            "status": "clipped",
+            "symbol": "msft",
+            "requested_notional": "1000.00",
+            "executed_notional": "600.00",
+            "clipped": True,
         },
         "order.intent.recorded": {
             "order_intent_id": f"intent_{variant}",
@@ -105,6 +134,19 @@ def payload_for(event_type: str, variant: int) -> dict:
         "strategy.context.recorded": {
             "strategy_id": f"strategy_{variant}",
             "setup": "matrix",
+        },
+        "evaluation.epoch.started": {
+            "epoch_id": f"epoch_{variant}",
+            "epoch_kind": "shadow_comparison",
+            "context_hash": "sha256:context",
+            "expected_member_count": 3,
+        },
+        "evaluation.epoch.member.completed": {
+            "epoch_id": f"epoch_{variant}",
+            "member_id": f"member_{variant}",
+            "expected": True,
+            "state": "completed",
+            "coverage_penalty": "0",
         },
         "replay.result.recorded": {
             "suite_name": "matrix",

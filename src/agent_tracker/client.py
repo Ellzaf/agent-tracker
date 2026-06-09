@@ -1167,6 +1167,125 @@ class Run:
             symbols=symbols or self.symbols,
         )
 
+    def opportunity_board(
+        self,
+        *,
+        board_id: str,
+        scope: str,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "opportunity.board.recorded",
+            payload={"board_id": board_id, "scope": scope, **payload},
+        )
+
+    def candidate_review(
+        self,
+        *,
+        candidate_id: str,
+        board_id: str,
+        review_status: str,
+        symbol: str | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "opportunity.candidate.reviewed",
+            payload=_compact(
+                {
+                    "candidate_id": candidate_id,
+                    "board_id": board_id,
+                    "review_status": review_status,
+                    "symbol": symbol,
+                    **payload,
+                }
+            ),
+            symbols=[symbol] if symbol else self.symbols,
+        )
+
+    def setup_profile(
+        self,
+        *,
+        setup_profile_id: str,
+        primary_regime: str,
+        entry_permission: str,
+        symbol: str | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "setup.profile.recorded",
+            payload=_compact(
+                {
+                    "setup_profile_id": setup_profile_id,
+                    "primary_regime": primary_regime,
+                    "entry_permission": entry_permission,
+                    "symbol": symbol,
+                    **payload,
+                }
+            ),
+            symbols=[symbol] if symbol else self.symbols,
+        )
+
+    def action_outcome(
+        self,
+        *,
+        action_id: str,
+        action_kind: str,
+        status: str,
+        symbol: str | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "action.outcome.recorded",
+            payload=_compact(
+                {
+                    "action_id": action_id,
+                    "action_kind": action_kind,
+                    "status": status,
+                    "symbol": symbol,
+                    **payload,
+                }
+            ),
+            symbols=[symbol] if symbol else self.symbols,
+        )
+
+    def evaluation_epoch(
+        self,
+        *,
+        epoch_id: str,
+        epoch_kind: str,
+        context_hash: str,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "evaluation.epoch.started",
+            payload={
+                "epoch_id": epoch_id,
+                "epoch_kind": epoch_kind,
+                "context_hash": context_hash,
+                **payload,
+            },
+        )
+
+    def evaluation_epoch_member(
+        self,
+        *,
+        epoch_id: str,
+        member_id: str,
+        expected: bool,
+        state: str,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "evaluation.epoch.member.completed",
+            payload={
+                "epoch_id": epoch_id,
+                "member_id": member_id,
+                "expected": expected,
+                "state": state,
+                **payload,
+            },
+        )
+
     def cost_usage(
         self, *, provider: str, usage_kind: str, quantity: int, **payload: Any
     ) -> dict[str, Any]:

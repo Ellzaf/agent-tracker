@@ -5,11 +5,16 @@ from pathlib import Path
 import pytest
 
 from agent_tracker import (
+    ActionOutcomePayload,
     AgentBuildPayload,
     AgentTracker,
+    CandidateReviewPayload,
     CapitalFlowPayload,
     Config,
     DecisionOutcomePayload,
+    EvaluationEpochMemberPayload,
+    EvaluationEpochPayload,
+    OpportunityBoardPayload,
     OrderIntentPayload,
     PaperFillPayload,
     PerformanceSnapshotPayload,
@@ -17,6 +22,7 @@ from agent_tracker import (
     PositionSnapshotPayload,
     PromptVersionPayload,
     ReplayResultPayload,
+    SetupProfilePayload,
     StrategyContextPayload,
 )
 from agent_tracker.errors import SchemaValidationError
@@ -126,6 +132,77 @@ def test_typed_payload_builders_emit_valid_events(tmp_path: Path) -> None:
             ).to_payload(),
         ),
         client.event(
+            "opportunity.board.recorded",
+            run_id="run_builders",
+            payload=OpportunityBoardPayload(
+                board_id="board_1",
+                scope="full_universe",
+                candidate_count="48",
+                reviewed_count="12",
+            ).to_payload(),
+        ),
+        client.event(
+            "opportunity.candidate.reviewed",
+            run_id="run_builders",
+            symbols=["NVDA"],
+            payload=CandidateReviewPayload(
+                candidate_id="candidate_1",
+                board_id="board_1",
+                symbol="NVDA",
+                review_status="optimizer_skipped",
+                reason_code="turnover_capacity",
+            ).to_payload(),
+        ),
+        client.event(
+            "setup.profile.recorded",
+            run_id="run_builders",
+            symbols=["NVDA"],
+            payload=SetupProfilePayload(
+                setup_profile_id="setup_1",
+                symbol="NVDA",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                allowed_entry_modes=["starter"],
+                trend_quality_score="81",
+            ).to_payload(),
+        ),
+        client.event(
+            "action.outcome.recorded",
+            run_id="run_builders",
+            symbols=["NVDA"],
+            payload=ActionOutcomePayload(
+                action_id="action_1",
+                action_kind="rebalance",
+                status="clipped",
+                symbol="NVDA",
+                requested_notional="1000.00",
+                executed_notional="600.00",
+                clipped=True,
+            ).to_payload(),
+        ),
+        client.event(
+            "evaluation.epoch.started",
+            run_id="run_builders",
+            payload=EvaluationEpochPayload(
+                epoch_id="epoch_1",
+                epoch_kind="model_comparison",
+                context_hash="sha256:context",
+                expected_member_count=2,
+            ).to_payload(),
+        ),
+        client.event(
+            "evaluation.epoch.member.completed",
+            run_id="run_builders",
+            payload=EvaluationEpochMemberPayload(
+                epoch_id="epoch_1",
+                member_id="shadow_a",
+                expected=True,
+                state="completed",
+                coverage_penalty="0",
+                scored=True,
+            ).to_payload(),
+        ),
+        client.event(
             "agent.build.recorded",
             run_id="run_builders",
             payload=AgentBuildPayload(
@@ -178,4 +255,28 @@ def test_typed_payload_builders_reject_invalid_reporting_values() -> None:
             prompt_family="allocation",
             prompt_version="2026-06-07",
             prompt_hash="sha256:prompt",
+        ).to_payload()
+
+    with pytest.raises(SchemaValidationError):
+        CandidateReviewPayload(
+            candidate_id="candidate_1",
+            board_id="board_1",
+            review_status="made_up",
+        ).to_payload()
+
+    with pytest.raises(SchemaValidationError):
+        SetupProfilePayload(
+            setup_profile_id="setup_1",
+            primary_regime="trend_continuation",
+            entry_permission="eligible_starter",
+            trend_quality_score="101",
+        ).to_payload()
+
+    with pytest.raises(SchemaValidationError):
+        EvaluationEpochMemberPayload(
+            epoch_id="epoch_1",
+            member_id="shadow_a",
+            expected=True,
+            state="timeout",
+            coverage_penalty="-1",
         ).to_payload()

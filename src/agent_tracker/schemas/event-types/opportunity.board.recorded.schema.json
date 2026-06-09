@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/opportunity.board.recorded.schema.json",
+  "title": "opportunity.board.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "opportunity.board.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["board_id", "scope"],
+          "properties": {
+            "board_id": { "type": "string", "minLength": 1 },
+            "scope": { "type": "string", "minLength": 1 },
+            "source": { "type": "string" },
+            "context_hash": { "type": "string" },
+            "candidate_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "reviewed_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "excluded_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "stale_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "urgent_research_count": { "$ref": "#/$defs/nonNegativeNumber" }
+          }
+        }
+      }
+    }
+  ]
+}

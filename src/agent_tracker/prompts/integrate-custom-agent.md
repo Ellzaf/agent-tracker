@@ -24,9 +24,10 @@ Work:
 4. Prefer `@tracker.trace(...)`, `tracker.instrument(...)`, or helper methods
    around existing functions before writing custom plumbing.
 5. Emit events for the surfaces this repo actually has: runs, model calls,
-   tools, sources, market snapshots, memory reads, decisions, risk checks,
-   rejected trades, paper fills, positions, portfolio snapshots, capital flows,
-   performance snapshots, replay results, costs, and errors.
+   tools, sources, market snapshots, memory reads, candidate boards/reviews,
+   setup profiles, decisions, action outcomes, risk checks, rejected trades,
+   paper fills, positions, portfolio snapshots, capital flows, performance
+   snapshots, evaluation epochs, replay results, costs, and errors.
 6. Add tests for telemetry disabled, local queue mode, mocked upload, privacy
    redaction, and JSONL validation.
 7. Run `agent-tracker flush --dry-run` before any real upload.

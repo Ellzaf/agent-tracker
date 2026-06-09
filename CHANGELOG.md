@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 - 2026-06-09
+
+- Added general opportunity-board and candidate-review telemetry for tracking
+  which candidates were seen, reviewed, excluded, omitted, skipped, or
+  backfilled.
+- Added setup-profile telemetry for entry regimes and entry permissions such as
+  trend continuation, breakout retest, range trade, false-breakout prone,
+  falling-knife pending, research-first, and risk-review-only states.
+- Added action-outcome telemetry for planned, skipped, clipped, rejected, and
+  deferred actions with capacity, clipping, and risk-reduction fields.
+- Added evaluation-epoch telemetry for fair same-input comparisons across
+  models, prompts, or agent profiles.
+- Added typed payload builders, `Run` helper methods, JSON Schemas, generated
+  matrix coverage, and repair-pack evidence extraction for the new telemetry.
+- Added `agent-tracker canary` for dry-run or live ingestion contract checks.
+
 ## 0.2.0 - 2026-06-08
 
 - Added wrapper-first integration tools: `trace(..., flush_after=True)`,

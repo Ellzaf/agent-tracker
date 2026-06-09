@@ -21,6 +21,15 @@ REPORTING_EVENT_TYPES = {
     "strategy.context.recorded",
 }
 
+DIAGNOSTIC_EVENT_TYPES = {
+    "opportunity.board.recorded",
+    "opportunity.candidate.reviewed",
+    "setup.profile.recorded",
+    "action.outcome.recorded",
+    "evaluation.epoch.started",
+    "evaluation.epoch.member.completed",
+}
+
 REPORTING_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
     "agent.build.recorded": {"build_id", "config_hash", "risk_gate_version"},
     "order.intent.recorded": {
@@ -55,6 +64,28 @@ REPORTING_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
     "strategy.context.recorded": {"strategy_id"},
 }
 
+DIAGNOSTIC_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
+    "opportunity.board.recorded": {"board_id", "scope"},
+    "opportunity.candidate.reviewed": {
+        "candidate_id",
+        "board_id",
+        "review_status",
+    },
+    "setup.profile.recorded": {
+        "setup_profile_id",
+        "primary_regime",
+        "entry_permission",
+    },
+    "action.outcome.recorded": {"action_id", "action_kind", "status"},
+    "evaluation.epoch.started": {"epoch_id", "epoch_kind", "context_hash"},
+    "evaluation.epoch.member.completed": {
+        "epoch_id",
+        "member_id",
+        "expected",
+        "state",
+    },
+}
+
 ORDER_SIDES = {"buy", "sell", "short", "cover"}
 OPEN_CLOSE_EFFECTS = {"open", "increase", "reduce", "close", "unknown"}
 FILL_SOURCES = {"paper", "shadow", "replay", "manual_import"}
@@ -81,15 +112,80 @@ OUTCOME_KINDS = {
     "replayed",
 }
 SESSION_STATES = {"pre_market", "regular", "after_hours", "closed"}
+OPPORTUNITY_REVIEW_STATUSES = {
+    "candidate_present",
+    "included_candidate",
+    "included_review_only",
+    "not_in_candidate_set",
+    "targeted",
+    "model_omitted",
+    "optimizer_planned",
+    "optimizer_skipped",
+    "risk_rejected",
+    "excluded_avoid",
+    "excluded_unresearched",
+    "excluded_stale",
+    "excluded_source_quality",
+    "excluded_data_quality",
+    "excluded_candidate_limit",
+    "excluded_cash",
+    "excluded_factor_cap",
+    "excluded_whole_share",
+    "backfill_unknown",
+    "other",
+}
+ENTRY_REGIMES = {
+    "trend_continuation",
+    "breakout_retest",
+    "ma_band_range_trade",
+    "false_breakout_prone",
+    "falling_knife_reversal_pending",
+    "overextended_momentum",
+    "stale_or_research_blocked",
+    "wait",
+    "custom",
+}
+ENTRY_PERMISSIONS = {
+    "eligible_starter",
+    "eligible_scale_add",
+    "wait_for_retest",
+    "range_trade_only",
+    "research_first",
+    "avoid_new_buy",
+    "risk_review_only",
+    "custom",
+}
+ACTION_OUTCOME_STATUSES = {
+    "planned",
+    "executed",
+    "skipped",
+    "clipped",
+    "rejected",
+    "deferred",
+}
+EVALUATION_MEMBER_STATES = {
+    "completed",
+    "failed",
+    "skipped",
+    "timeout",
+    "schema_failed",
+    "not_runnable",
+}
 _STRICT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REPORTING_IDENTITY_FIELDS = {
+    "action_id",
     "asset",
     "build_id",
     "capital_flow_id",
+    "candidate_id",
+    "board_id",
+    "capacity_kind",
     "config_hash",
     "currency",
     "decision_id",
+    "epoch_id",
     "fill_id",
+    "member_id",
     "order_intent_id",
     "period_kind",
     "portfolio_kind",
@@ -101,18 +197,43 @@ _REPORTING_IDENTITY_FIELDS = {
 _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "average_price",
     "case_count",
+    "candidate_count",
+    "coverage_penalty",
+    "data_quality_score",
     "drawdown_pct",
+    "excluded_count",
+    "executed_notional",
+    "executed_quantity",
+    "expected_member_count",
     "fees",
     "freshness_seconds",
+    "falling_knife_score",
+    "false_breakout_score",
     "holding_period_seconds",
     "intended_price",
     "intended_quantity",
+    "member_count",
     "market_price",
     "max_drawdown_pct",
     "planned_reward_risk",
     "price",
+    "projected_post_action_weight",
+    "range_quality_score",
+    "rank",
+    "recommended_starter_cap_pct",
+    "remaining_capacity_after",
+    "remaining_capacity_before",
+    "requested_notional",
+    "requested_quantity",
+    "requested_weight",
     "return_base",
+    "reviewed_count",
+    "selected_symbol_count",
     "source_confidence",
+    "stale_count",
+    "target_weight",
+    "trend_quality_score",
+    "urgent_research_count",
 }
 _SIGNED_EXTENSION_NUMBER_FIELDS = {
     "compounded_return_pct",
@@ -124,9 +245,30 @@ _SIGNED_EXTENSION_NUMBER_FIELDS = {
     "planned_risk_pct",
     "raw_equity_change",
     "realized_pnl",
+    "session_return_pct",
+    "one_day_return_pct",
+    "one_hour_return_pct",
     "trading_pnl_amount",
     "trading_pnl_pct",
     "unrealized_pnl",
+}
+_BOOL_EXTENSION_FIELDS = {
+    "clipped",
+    "expected",
+    "risk_reduction",
+    "scored",
+}
+_STRING_LIST_FIELDS = {
+    "allowed_entry_modes",
+    "blocked_entry_modes",
+    "reason_codes",
+}
+_SCORE_FIELDS = {
+    "data_quality_score",
+    "falling_knife_score",
+    "false_breakout_score",
+    "range_quality_score",
+    "trend_quality_score",
 }
 
 
@@ -141,6 +283,10 @@ class ReportingReadiness:
     can_compute_strategy_stats: bool
     can_compute_prompt_drift_stats: bool
     can_compare_shadow_agents: bool
+    can_diagnose_opportunity_coverage: bool
+    can_diagnose_setup_regimes: bool
+    can_diagnose_action_outcomes: bool
+    can_compare_evaluation_epochs: bool
     can_generate_repair_prompts: bool
     can_score_arena: bool
     can_publish_proof: bool
@@ -160,6 +306,12 @@ class ReportingReadiness:
             "can_compute_strategy_stats": self.can_compute_strategy_stats,
             "can_compute_prompt_drift_stats": self.can_compute_prompt_drift_stats,
             "can_compare_shadow_agents": self.can_compare_shadow_agents,
+            "can_diagnose_opportunity_coverage": (
+                self.can_diagnose_opportunity_coverage
+            ),
+            "can_diagnose_setup_regimes": self.can_diagnose_setup_regimes,
+            "can_diagnose_action_outcomes": self.can_diagnose_action_outcomes,
+            "can_compare_evaluation_epochs": self.can_compare_evaluation_epochs,
             "can_generate_repair_prompts": self.can_generate_repair_prompts,
             "can_score_arena": self.can_score_arena,
             "can_publish_proof": self.can_publish_proof,
@@ -273,6 +425,8 @@ class ArenaReadiness:
     drawdown_metrics_present: bool
     survival_metrics_present: bool
     replay_results_present: bool
+    evaluation_epochs_present: bool
+    evaluation_member_coverage_present: bool
     strategy_tags_present: bool
     position_state_present: bool
     portfolio_state_present: bool
@@ -289,6 +443,10 @@ class ArenaReadiness:
             "drawdown_metrics_present": self.drawdown_metrics_present,
             "survival_metrics_present": self.survival_metrics_present,
             "replay_results_present": self.replay_results_present,
+            "evaluation_epochs_present": self.evaluation_epochs_present,
+            "evaluation_member_coverage_present": (
+                self.evaluation_member_coverage_present
+            ),
             "strategy_tags_present": self.strategy_tags_present,
             "position_state_present": self.position_state_present,
             "portfolio_state_present": self.portfolio_state_present,
@@ -300,11 +458,14 @@ class ArenaReadiness:
 def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> None:
     """Validate event-specific reporting fields when a reporting event is used."""
 
-    if event_type not in REPORTING_REQUIRED_PAYLOAD_FIELDS:
+    required_fields = REPORTING_REQUIRED_PAYLOAD_FIELDS.get(
+        event_type
+    ) or DIAGNOSTIC_REQUIRED_PAYLOAD_FIELDS.get(event_type)
+    if required_fields is None:
         _validate_reporting_extensions(event_type, payload)
         return
 
-    missing = sorted(REPORTING_REQUIRED_PAYLOAD_FIELDS[event_type] - set(payload))
+    missing = sorted(required_fields - set(payload))
     if missing:
         raise SchemaValidationError(
             f"payload missing reporting fields for {event_type}: {', '.join(missing)}"
@@ -357,6 +518,44 @@ def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> N
         _require_nonempty(payload, "build_id")
         _require_nonempty(payload, "config_hash")
         _require_nonempty(payload, "risk_gate_version")
+    elif event_type == "opportunity.board.recorded":
+        _require_nonempty(payload, "board_id")
+        _require_nonempty(payload, "scope")
+        _require_optional_number(payload, "candidate_count", minimum=Decimal("0"))
+        _require_optional_number(payload, "reviewed_count", minimum=Decimal("0"))
+        _require_optional_number(payload, "excluded_count", minimum=Decimal("0"))
+    elif event_type == "opportunity.candidate.reviewed":
+        _require_nonempty(payload, "candidate_id")
+        _require_nonempty(payload, "board_id")
+        _require_enum(payload, "review_status", OPPORTUNITY_REVIEW_STATUSES)
+        _require_optional_number(payload, "rank", minimum=Decimal("0"))
+    elif event_type == "setup.profile.recorded":
+        _require_nonempty(payload, "setup_profile_id")
+        _require_enum(payload, "primary_regime", ENTRY_REGIMES)
+        _require_enum(payload, "entry_permission", ENTRY_PERMISSIONS)
+    elif event_type == "action.outcome.recorded":
+        _require_nonempty(payload, "action_id")
+        _require_nonempty(payload, "action_kind")
+        _require_enum(payload, "status", ACTION_OUTCOME_STATUSES)
+        _require_optional_number(payload, "requested_notional", minimum=Decimal("0"))
+        _require_optional_number(payload, "executed_notional", minimum=Decimal("0"))
+        _require_optional_bool(payload, "clipped")
+        _require_optional_bool(payload, "risk_reduction")
+    elif event_type == "evaluation.epoch.started":
+        _require_nonempty(payload, "epoch_id")
+        _require_nonempty(payload, "epoch_kind")
+        _require_nonempty(payload, "context_hash")
+        _require_optional_number(
+            payload, "expected_member_count", minimum=Decimal("0")
+        )
+        _require_optional_number(payload, "candidate_count", minimum=Decimal("0"))
+    elif event_type == "evaluation.epoch.member.completed":
+        _require_nonempty(payload, "epoch_id")
+        _require_nonempty(payload, "member_id")
+        _require_bool(payload, "expected")
+        _require_enum(payload, "state", EVALUATION_MEMBER_STATES)
+        _require_optional_bool(payload, "scored")
+        _require_optional_number(payload, "coverage_penalty", minimum=Decimal("0"))
 
     _validate_reporting_extensions(event_type, payload)
 
@@ -401,6 +600,42 @@ def assess_reporting_readiness(
         payload
         for event in event_list
         if event.get("event_type") == "llm.call.started"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+    opportunity_board_payloads = [
+        payload
+        for event in event_list
+        if event.get("event_type") == "opportunity.board.recorded"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+    candidate_review_payloads = [
+        payload
+        for event in event_list
+        if event.get("event_type") == "opportunity.candidate.reviewed"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+    setup_profile_payloads = [
+        payload
+        for event in event_list
+        if event.get("event_type") == "setup.profile.recorded"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+    action_outcome_payloads = [
+        payload
+        for event in event_list
+        if event.get("event_type") == "action.outcome.recorded"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+    evaluation_epoch_payloads = [
+        payload
+        for event in event_list
+        if event.get("event_type") == "evaluation.epoch.started"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+    evaluation_member_payloads = [
+        payload
+        for event in event_list
+        if event.get("event_type") == "evaluation.epoch.member.completed"
         and isinstance(payload := event.get("payload"), Mapping)
     ]
 
@@ -486,6 +721,37 @@ def assess_reporting_readiness(
     if not can_compare_shadow_agents:
         warnings.add("shadow_comparison_metadata")
 
+    can_diagnose_opportunity_coverage = bool(opportunity_board_payloads) and any(
+        _has_fields(payload, {"candidate_id", "board_id", "review_status"})
+        for payload in candidate_review_payloads
+    )
+    if not can_diagnose_opportunity_coverage:
+        warnings.add("opportunity_review_metadata")
+
+    can_diagnose_setup_regimes = any(
+        _has_fields(payload, {"setup_profile_id", "primary_regime", "entry_permission"})
+        for payload in setup_profile_payloads
+    ) or any(
+        _has_fields(payload, {"primary_regime", "entry_permission"})
+        for payload in payloads
+    )
+    if not can_diagnose_setup_regimes:
+        warnings.add("setup_regime_metadata")
+
+    can_diagnose_action_outcomes = any(
+        _has_fields(payload, {"action_id", "action_kind", "status"})
+        for payload in action_outcome_payloads
+    )
+    if not can_diagnose_action_outcomes:
+        warnings.add("action_outcome_metadata")
+
+    can_compare_evaluation_epochs = bool(evaluation_epoch_payloads) and any(
+        _has_fields(payload, {"epoch_id", "member_id", "expected", "state"})
+        for payload in evaluation_member_payloads
+    )
+    if not can_compare_evaluation_epochs:
+        warnings.add("evaluation_epoch_metadata")
+
     can_generate_repair_prompts = any(
         isinstance(event.get("payload"), Mapping)
         and _has_any(event["payload"], {"mistake_family", "component", "severity"})
@@ -520,6 +786,10 @@ def assess_reporting_readiness(
         can_compute_strategy_stats=can_compute_strategy_stats,
         can_compute_prompt_drift_stats=can_compute_prompt_drift_stats,
         can_compare_shadow_agents=can_compare_shadow_agents,
+        can_diagnose_opportunity_coverage=can_diagnose_opportunity_coverage,
+        can_diagnose_setup_regimes=can_diagnose_setup_regimes,
+        can_diagnose_action_outcomes=can_diagnose_action_outcomes,
+        can_compare_evaluation_epochs=can_compare_evaluation_epochs,
         can_generate_repair_prompts=can_generate_repair_prompts,
         can_score_arena=can_score_arena,
         can_publish_proof=can_publish_proof,
@@ -766,6 +1036,8 @@ def assess_arena_readiness(events: Iterable[Mapping[str, Any]]) -> ArenaReadines
         for payload in payloads
     )
     replay_results = "replay.result.recorded" in event_types
+    evaluation_epochs = "evaluation.epoch.started" in event_types
+    evaluation_member_coverage = "evaluation.epoch.member.completed" in event_types
     strategy_tags = any(
         _has_any(payload, {"strategy_id", "strategy_name", "setup"})
         for payload in payloads
@@ -780,6 +1052,8 @@ def assess_arena_readiness(events: Iterable[Mapping[str, Any]]) -> ArenaReadines
         "drawdown_metrics": drawdown_metrics,
         "survival_metrics": survival_metrics,
         "replay_results": replay_results,
+        "evaluation_epochs": evaluation_epochs,
+        "evaluation_member_coverage": evaluation_member_coverage,
         "strategy_tags": strategy_tags,
         "position_state": position_state,
         "portfolio_state": portfolio_state,
@@ -801,6 +1075,8 @@ def assess_arena_readiness(events: Iterable[Mapping[str, Any]]) -> ArenaReadines
         drawdown_metrics_present=drawdown_metrics,
         survival_metrics_present=survival_metrics,
         replay_results_present=replay_results,
+        evaluation_epochs_present=evaluation_epochs,
+        evaluation_member_coverage_present=evaluation_member_coverage,
         strategy_tags_present=strategy_tags,
         position_state_present=position_state,
         portfolio_state_present=portfolio_state,
@@ -844,6 +1120,9 @@ def build_dataset_items(events: Iterable[Mapping[str, Any]]) -> list[dict[str, A
             "error.recorded",
             "replay.result.recorded",
             "decision.outcome.recorded",
+            "opportunity.candidate.reviewed",
+            "action.outcome.recorded",
+            "evaluation.epoch.member.completed",
         }:
             continue
         items.append(
@@ -937,6 +1216,16 @@ def _validate_reporting_extensions(
         _require_enum(payload, "fill_source", FILL_SOURCES)
     if "session_state" in payload:
         _require_enum(payload, "session_state", SESSION_STATES)
+    if "review_status" in payload:
+        _require_enum(payload, "review_status", OPPORTUNITY_REVIEW_STATUSES)
+    if "primary_regime" in payload:
+        _require_enum(payload, "primary_regime", ENTRY_REGIMES)
+    if "entry_permission" in payload:
+        _require_enum(payload, "entry_permission", ENTRY_PERMISSIONS)
+    if "status" in payload and _event_type == "action.outcome.recorded":
+        _require_enum(payload, "status", ACTION_OUTCOME_STATUSES)
+    if "state" in payload and _event_type == "evaluation.epoch.member.completed":
+        _require_enum(payload, "state", EVALUATION_MEMBER_STATES)
     if "session_date" in payload:
         _require_date(payload, "session_date")
     if "linked_event_ids" in payload:
@@ -945,13 +1234,22 @@ def _validate_reporting_extensions(
             isinstance(item, str) and item.startswith("evt_") for item in linked
         ):
             raise SchemaValidationError("linked_event_ids must contain event IDs")
+    for field in _BOOL_EXTENSION_FIELDS:
+        _require_optional_bool(payload, field)
+    for field in _STRING_LIST_FIELDS:
+        _require_optional_string_list(payload, field)
     if _event_type == "paper.fill.recorded":
         _require_optional_number(payload, "quantity", minimum=Decimal("0"))
     for field in _REPORTING_IDENTITY_FIELDS:
         if field in payload and payload[field] is not None:
             _require_nonempty(payload, field)
     for field in _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS:
-        _require_optional_number(payload, field, minimum=Decimal("0"))
+        if field in _SCORE_FIELDS:
+            _require_optional_number(
+                payload, field, minimum=Decimal("0"), maximum=Decimal("100")
+            )
+        else:
+            _require_optional_number(payload, field, minimum=Decimal("0"))
     for field in _SIGNED_EXTENSION_NUMBER_FIELDS:
         _require_optional_number(payload, field)
 
@@ -984,10 +1282,13 @@ def _require_number(
     field: str,
     *,
     minimum: Decimal | None = None,
+    maximum: Decimal | None = None,
 ) -> None:
     value = _decimal(payload.get(field), field=field)
     if minimum is not None and value < minimum:
         raise SchemaValidationError(f"{field} must be >= {minimum}")
+    if maximum is not None and value > maximum:
+        raise SchemaValidationError(f"{field} must be <= {maximum}")
 
 
 def _require_optional_number(
@@ -995,9 +1296,20 @@ def _require_optional_number(
     field: str,
     *,
     minimum: Decimal | None = None,
+    maximum: Decimal | None = None,
 ) -> None:
     if field in payload and payload[field] is not None:
-        _require_number(payload, field, minimum=minimum)
+        _require_number(payload, field, minimum=minimum, maximum=maximum)
+
+
+def _require_optional_string_list(payload: Mapping[str, Any], field: str) -> None:
+    if field not in payload or payload[field] is None:
+        return
+    value = payload[field]
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item.strip() for item in value
+    ):
+        raise SchemaValidationError(f"{field} must be a list of non-empty strings")
 
 
 def _require_date(payload: Mapping[str, Any], field: str) -> None:
@@ -1074,8 +1386,9 @@ def _repair_findings(
     security: AgenticSecurityReadiness,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
+    readiness_findings: list[dict[str, Any]] = []
     for gap in tier.pro_gaps:
-        findings.append(
+        readiness_findings.append(
             {
                 "finding_id": f"tier.pro.{gap}",
                 "severity": "warning",
@@ -1086,7 +1399,7 @@ def _repair_findings(
             }
         )
     for gap in tier.basic_gaps:
-        findings.append(
+        readiness_findings.append(
             {
                 "finding_id": f"tier.basic.{gap}",
                 "severity": "warning",
@@ -1097,7 +1410,7 @@ def _repair_findings(
             }
         )
     for gap in security.gaps:
-        findings.append(
+        readiness_findings.append(
             {
                 "finding_id": f"security.{gap}",
                 "severity": "warning",
@@ -1125,7 +1438,70 @@ def _repair_findings(
                 "suggested_tests": ["add or rerun a replay case for this finding"],
             }
         )
-    return findings
+    for event in events:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        event_id = event.get("event_id")
+        event_type = event.get("event_type")
+        if event_type == "opportunity.candidate.reviewed" and payload.get(
+            "review_status"
+        ) in {
+            "model_omitted",
+            "optimizer_skipped",
+            "not_in_candidate_set",
+            "excluded_stale",
+            "excluded_source_quality",
+            "excluded_data_quality",
+        }:
+            findings.append(
+                {
+                    "finding_id": f"opportunity.{payload.get('review_status')}",
+                    "severity": "warning",
+                    "target_surface": "opportunity_review",
+                    "message": (
+                        "Candidate review recorded "
+                        f"{payload.get('review_status')}."
+                    ),
+                    "evidence_event_ids": [event_id],
+                    "suggested_tests": [
+                        "add a replay proving candidates are reviewed or excluded"
+                    ],
+                }
+            )
+        if event_type == "action.outcome.recorded" and payload.get("status") in {
+            "skipped",
+            "clipped",
+            "rejected",
+            "deferred",
+        }:
+            findings.append(
+                {
+                    "finding_id": f"action.{payload.get('status')}",
+                    "severity": "warning",
+                    "target_surface": "action_outcome",
+                    "message": f"Action outcome recorded {payload.get('status')}.",
+                    "evidence_event_ids": [event_id],
+                    "suggested_tests": ["add a capacity and skip-reason regression"],
+                }
+            )
+        if event_type == "evaluation.epoch.member.completed" and payload.get(
+            "state"
+        ) in {"failed", "skipped", "timeout", "schema_failed", "not_runnable"}:
+            findings.append(
+                {
+                    "finding_id": f"evaluation.{payload.get('state')}",
+                    "severity": "warning",
+                    "target_surface": "evaluation_epoch",
+                    "message": (
+                        "Evaluation member recorded "
+                        f"{payload.get('state')} in an expected epoch."
+                    ),
+                    "evidence_event_ids": [event_id],
+                    "suggested_tests": ["add a fair-epoch coverage regression"],
+                }
+            )
+    return [*findings, *readiness_findings]
 
 
 def _repair_prompt(findings: list[dict[str, Any]]) -> str:
@@ -1172,6 +1548,12 @@ def _expected_invariant(event: Mapping[str, Any]) -> str:
         return "replay_suite_passes_or_reports_failures"
     if event_type == "decision.outcome.recorded":
         return "decision_outcome_links_to_evidence"
+    if event_type == "opportunity.candidate.reviewed":
+        return "candidate_review_reason_preserved"
+    if event_type == "action.outcome.recorded":
+        return "skipped_or_clipped_action_reason_preserved"
+    if event_type == "evaluation.epoch.member.completed":
+        return "evaluation_epoch_coverage_preserved"
     return "agent_behavior_preserved"
 
 

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/evaluation.epoch.started.schema.json",
+  "title": "evaluation.epoch.started",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "evaluation.epoch.started" },
+        "payload": {
+          "type": "object",
+          "required": ["epoch_id", "epoch_kind", "context_hash"],
+          "properties": {
+            "epoch_id": { "type": "string", "minLength": 1 },
+            "epoch_kind": { "type": "string", "minLength": 1 },
+            "context_hash": { "type": "string", "minLength": 1 },
+            "input_snapshot_hash": { "type": "string" },
+            "candidate_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "selected_symbol_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "expected_member_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "market_phase": { "type": "string" }
+          }
+        }
+      }
+    }
+  ]
+}

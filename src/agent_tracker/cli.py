@@ -12,7 +12,11 @@ from typing import Any
 from agent_tracker.adapters.aitrade import AitradeExporter
 from agent_tracker.client import AgentTracker
 from agent_tracker.config import Config
-from agent_tracker.constants import DEFAULT_MAX_QUEUE_BYTES, DEFAULT_QUEUE_DIR
+from agent_tracker.constants import (
+    DEFAULT_MAX_QUEUE_BYTES,
+    DEFAULT_QUEUE_DIR,
+    SDK_VERSION,
+)
 from agent_tracker.doctor import doctor_repo, format_doctor_plan, format_doctor_report
 from agent_tracker.errors import AgentTrackerError
 from agent_tracker.mapping import export_mapped_events
@@ -185,6 +189,21 @@ def _parser() -> argparse.ArgumentParser:
     )
     doctor_upload.add_argument("--fail-fast", action="store_true")
     doctor_upload.set_defaults(func=_cmd_doctor_upload)
+
+    canary = subparsers.add_parser(
+        "canary",
+        help="send or dry-run a privacy-safe ingestion canary event",
+    )
+    canary.add_argument("--project")
+    canary.add_argument("--environment")
+    canary.add_argument("--agent-id")
+    canary.add_argument(
+        "--live",
+        action="store_true",
+        help="upload the canary batch instead of only preparing it",
+    )
+    canary.add_argument("--fail-fast", action="store_true")
+    canary.set_defaults(func=_cmd_canary)
 
     sample = subparsers.add_parser("emit-sample", help="emit bundled sample events")
     sample.add_argument("--profile", choices=["ebook", "reporting"], default="ebook")
@@ -400,23 +419,48 @@ def _cmd_flush(args: argparse.Namespace) -> int:
 
 
 def _cmd_doctor_upload(args: argparse.Namespace) -> int:
+    return _cmd_diagnostic_upload(
+        args,
+        run_type="agent_tracker_doctor_upload",
+        diagnostic_kind="doctor_upload",
+    )
+
+
+def _cmd_canary(args: argparse.Namespace) -> int:
+    return _cmd_diagnostic_upload(
+        args,
+        run_type="agent_tracker_ingestion_canary",
+        diagnostic_kind="canary",
+    )
+
+
+def _cmd_diagnostic_upload(
+    args: argparse.Namespace,
+    *,
+    run_type: str,
+    diagnostic_kind: str,
+) -> int:
     base_config = Config.from_env(
         project=args.project,
         environment=args.environment,
         agent_id=args.agent_id,
     )
-    with TemporaryDirectory(prefix="agent-tracker-doctor-") as tmp:
+    with TemporaryDirectory(prefix=f"agent-tracker-{diagnostic_kind}-") as tmp:
         client = AgentTracker(
             replace(base_config, queue_dir=Path(tmp), agent_id=base_config.agent_id)
         )
         with client.run(
-            run_type="agent_tracker_doctor_upload",
+            run_type=run_type,
             trigger="cli",
-            metadata={"diagnostic": True},
+            metadata={
+                "diagnostic": True,
+                "diagnostic_kind": diagnostic_kind,
+                "sdk_version": SDK_VERSION,
+            },
         ) as run:
             run.cost_usage(
                 provider="agent-tracker",
-                usage_kind="diagnostic_event",
+                usage_kind=diagnostic_kind,
                 quantity=1,
                 component="upload",
                 severity="info",
@@ -430,6 +474,7 @@ def _cmd_doctor_upload(args: argparse.Namespace) -> int:
         "project": base_config.project,
         "agent_id": base_config.agent_id,
         "environment": base_config.environment,
+        "diagnostic_kind": diagnostic_kind,
         "gzip": base_config.gzip_enabled,
         "live": args.live,
         "summary": asdict(summary),

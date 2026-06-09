@@ -80,6 +80,24 @@ def test_cli_doctor_upload_dry_run_reports_endpoint(
     assert output["summary"]["reason_code"] == "dry_run"
 
 
+def test_cli_canary_dry_run_reports_canary_kind(
+    tmp_path: Path,
+    capsys: object,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ELLZAF_PROJECT", "paper-agent")
+    monkeypatch.setenv("ELLZAF_API_KEY", "ellzaf_trk_testkey123456789")
+    monkeypatch.setenv("ELLZAF_QUEUE_DIR", str(tmp_path / "queue"))
+
+    assert main(["canary"]) == 0
+
+    output = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert output["endpoint"] == "https://ellzaf.com/v1/events/batch"
+    assert output["diagnostic_kind"] == "canary"
+    assert output["summary"]["dry_run"] is True
+    assert output["summary"]["reason_code"] == "dry_run"
+
+
 def test_cli_flush_dry_run_does_not_move_queue_files(
     tmp_path: Path,
     capsys: object,

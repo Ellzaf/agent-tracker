@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/opportunity.candidate.reviewed.schema.json",
+  "title": "opportunity.candidate.reviewed",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "scoreNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "maximum": 100 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:100(?:\\.0+)?|(?:[0-9]|[1-9][0-9])(?:\\.[0-9]+)?|\\.[0-9]+)$"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "opportunity.candidate.reviewed" },
+        "payload": {
+          "type": "object",
+          "required": ["candidate_id", "board_id", "review_status"],
+          "properties": {
+            "candidate_id": { "type": "string", "minLength": 1 },
+            "board_id": { "type": "string", "minLength": 1 },
+            "symbol": { "type": "string" },
+            "candidate_kind": { "type": "string" },
+            "source": { "type": "string" },
+            "lane": { "type": "string" },
+            "rank": { "$ref": "#/$defs/nonNegativeNumber" },
+            "review_status": {
+              "enum": [
+                "candidate_present",
+                "included_candidate",
+                "included_review_only",
+                "not_in_candidate_set",
+                "targeted",
+                "model_omitted",
+                "optimizer_planned",
+                "optimizer_skipped",
+                "risk_rejected",
+                "excluded_avoid",
+                "excluded_unresearched",
+                "excluded_stale",
+                "excluded_source_quality",
+                "excluded_data_quality",
+                "excluded_candidate_limit",
+                "excluded_cash",
+                "excluded_factor_cap",
+                "excluded_whole_share",
+                "backfill_unknown",
+                "other"
+              ]
+            },
+            "reason_code": { "type": "string" },
+            "data_quality_score": { "$ref": "#/$defs/scoreNumber" },
+            "context_hash": { "type": "string" }
+          }
+        }
+      }
+    }
+  ]
+}

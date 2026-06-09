@@ -141,6 +141,106 @@ class StrategyContextPayload(PayloadBuilder):
 
 
 @dataclass(frozen=True, slots=True)
+class OpportunityBoardPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "opportunity.board.recorded"
+
+    board_id: str
+    scope: str
+    source: str | None = None
+    context_hash: str | None = None
+    candidate_count: Any | None = None
+    reviewed_count: Any | None = None
+    excluded_count: Any | None = None
+    stale_count: Any | None = None
+    urgent_research_count: Any | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateReviewPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "opportunity.candidate.reviewed"
+
+    candidate_id: str
+    board_id: str
+    review_status: str
+    symbol: str | None = None
+    candidate_kind: str | None = "symbol"
+    source: str | None = None
+    lane: str | None = None
+    rank: Any | None = None
+    reason_code: str | None = None
+    data_quality_score: Any | None = None
+    context_hash: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SetupProfilePayload(PayloadBuilder):
+    event_type: ClassVar[str] = "setup.profile.recorded"
+
+    setup_profile_id: str
+    primary_regime: str
+    entry_permission: str
+    symbol: str | None = None
+    setup: str | None = None
+    allowed_entry_modes: list[str] | None = None
+    blocked_entry_modes: list[str] | None = None
+    trend_quality_score: Any | None = None
+    range_quality_score: Any | None = None
+    false_breakout_score: Any | None = None
+    falling_knife_score: Any | None = None
+    recommended_starter_cap_pct: Any | None = None
+    invalidation_reference: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ActionOutcomePayload(PayloadBuilder):
+    event_type: ClassVar[str] = "action.outcome.recorded"
+
+    action_id: str
+    action_kind: str
+    status: str
+    symbol: str | None = None
+    decision_id: str | None = None
+    order_intent_id: str | None = None
+    reason_code: str | None = None
+    requested_notional: Any | None = None
+    executed_notional: Any | None = None
+    remaining_capacity_before: Any | None = None
+    remaining_capacity_after: Any | None = None
+    capacity_kind: str | None = None
+    clipped: bool | None = None
+    risk_reduction: bool | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationEpochPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "evaluation.epoch.started"
+
+    epoch_id: str
+    epoch_kind: str
+    context_hash: str
+    input_snapshot_hash: str | None = None
+    candidate_count: Any | None = None
+    selected_symbol_count: Any | None = None
+    expected_member_count: Any | None = None
+    market_phase: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationEpochMemberPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "evaluation.epoch.member.completed"
+
+    epoch_id: str
+    member_id: str
+    expected: bool
+    state: str
+    context_hash: str | None = None
+    input_snapshot_hash: str | None = None
+    failure_bucket: str | None = None
+    coverage_penalty: Any | None = None
+    scored: bool | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AgentBuildPayload(PayloadBuilder):
     event_type: ClassVar[str] = "agent.build.recorded"
 

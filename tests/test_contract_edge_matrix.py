@@ -93,7 +93,30 @@ def _payload_for(event_type: str, scenario: int) -> dict[str, object]:
         "source.claim.recorded": {"claim_type": "source_quality"},
         "market.snapshot.recorded": {"source": "local_bars"},
         "memory.read.completed": {"memory_kind": "fact", "purpose": "allocation"},
+        "opportunity.board.recorded": {
+            "board_id": f"board_{scenario}",
+            "scope": "full_universe",
+            "candidate_count": scenario,
+        },
+        "opportunity.candidate.reviewed": {
+            "candidate_id": f"candidate_{scenario}",
+            "board_id": f"board_{scenario}",
+            "review_status": "model_omitted",
+            "reason_code": f"matrix_{scenario}",
+        },
+        "setup.profile.recorded": {
+            "setup_profile_id": f"setup_{scenario}",
+            "primary_regime": "breakout_retest",
+            "entry_permission": "wait_for_retest",
+            "allowed_entry_modes": ["retest"],
+        },
         "decision.proposed": {"decision_kind": "target_weight", "action": "watch"},
+        "action.outcome.recorded": {
+            "action_id": f"action_{scenario}",
+            "action_kind": "allocation",
+            "status": "skipped",
+            "reason_code": f"matrix_{scenario}",
+        },
         "order.intent.recorded": {
             "order_intent_id": f"intent_{scenario}",
             "decision_id": f"decision_{scenario}",
@@ -140,6 +163,17 @@ def _payload_for(event_type: str, scenario: int) -> dict[str, object]:
             "session_date": "2026-06-07",
         },
         "strategy.context.recorded": {"strategy_id": f"strategy_{scenario}"},
+        "evaluation.epoch.started": {
+            "epoch_id": f"epoch_{scenario}",
+            "epoch_kind": "model_comparison",
+            "context_hash": "sha256:matrix",
+        },
+        "evaluation.epoch.member.completed": {
+            "epoch_id": f"epoch_{scenario}",
+            "member_id": f"member_{scenario}",
+            "expected": True,
+            "state": "completed",
+        },
         "replay.result.recorded": {
             "suite_name": "matrix",
             "status": "succeeded",

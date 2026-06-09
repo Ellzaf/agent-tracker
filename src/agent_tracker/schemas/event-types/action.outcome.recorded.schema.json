@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/action.outcome.recorded.schema.json",
+  "title": "action.outcome.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "action.outcome.recorded" },
+        "payload": {
+          "type": "object",
+          "required": ["action_id", "action_kind", "status"],
+          "properties": {
+            "action_id": { "type": "string", "minLength": 1 },
+            "action_kind": { "type": "string", "minLength": 1 },
+            "status": {
+              "enum": ["planned", "executed", "skipped", "clipped", "rejected", "deferred"]
+            },
+            "symbol": { "type": "string" },
+            "decision_id": { "type": "string" },
+            "order_intent_id": { "type": "string" },
+            "reason_code": { "type": "string" },
+            "requested_notional": { "$ref": "#/$defs/nonNegativeNumber" },
+            "executed_notional": { "$ref": "#/$defs/nonNegativeNumber" },
+            "remaining_capacity_before": { "$ref": "#/$defs/nonNegativeNumber" },
+            "remaining_capacity_after": { "$ref": "#/$defs/nonNegativeNumber" },
+            "capacity_kind": { "type": "string" },
+            "clipped": { "type": "boolean" },
+            "risk_reduction": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -23,9 +23,14 @@ from agent_tracker.mapping import (
     export_mapped_events,
 )
 from agent_tracker.payloads import (
+    ActionOutcomePayload,
     AgentBuildPayload,
+    CandidateReviewPayload,
     CapitalFlowPayload,
     DecisionOutcomePayload,
+    EvaluationEpochMemberPayload,
+    EvaluationEpochPayload,
+    OpportunityBoardPayload,
     OrderIntentPayload,
     PaperFillPayload,
     PayloadBuilder,
@@ -34,6 +39,7 @@ from agent_tracker.payloads import (
     PositionSnapshotPayload,
     PromptVersionPayload,
     ReplayResultPayload,
+    SetupProfilePayload,
     StrategyContextPayload,
 )
 from agent_tracker.reporting import (
@@ -55,19 +61,24 @@ from agent_tracker.reporting import (
 from agent_tracker.sink import JsonlSink
 
 __all__ = [
+    "ActionOutcomePayload",
     "AgentBuildPayload",
     "AgentTracker",
     "AgentTrackerError",
     "AgentTrackerIntegrationReport",
     "AgenticSecurityReadiness",
     "ArenaReadiness",
+    "CandidateReviewPayload",
     "CapitalFlowPayload",
     "Config",
     "DecisionOutcomePayload",
+    "EvaluationEpochMemberPayload",
+    "EvaluationEpochPayload",
     "IntegrationSurface",
     "JsonlSink",
     "MappingError",
     "MappingExportSummary",
+    "OpportunityBoardPayload",
     "OrderIntentPayload",
     "PaperFillPayload",
     "PayloadBuilder",
@@ -82,6 +93,7 @@ __all__ = [
     "ReportingReadiness",
     "Run",
     "SchemaValidationError",
+    "SetupProfilePayload",
     "SourceRef",
     "StrategyContextPayload",
     "TierReadiness",

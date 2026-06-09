@@ -21,6 +21,9 @@ Check:
 - Reporting-grade telemetry links decisions, order intents, fills, positions,
   capital flows, performance snapshots, strategy context, prompt hashes, and
   replay results when the repo claims hosted stats support.
+- Opportunity-diagnostic telemetry records candidate boards, candidate review
+  statuses, setup regimes, action outcomes, and fair evaluation epochs when
+  the repo has those concepts.
 - Source-quality, market freshness, cash-only risk, PnL, memory lifecycle,
   shadow fairness, prompt drift, replay isolation, cost, and privacy failures
   have coverage where the repo has those concepts.

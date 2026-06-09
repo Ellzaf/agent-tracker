@@ -25,7 +25,13 @@ Map local concepts to these Ellzaf events:
 - model result, schema validation, postconditions, token use: `llm.call.completed`
 - market bars, tape, regime, freshness, scope: `market.snapshot.recorded`
 - memory reads, context packs, lifecycle, supersession: `memory.read.completed`
+- candidate boards, shortlists, review lanes, excluded candidates:
+  `opportunity.board.recorded`, `opportunity.candidate.reviewed`
+- setup regime, entry permission, false-breakout/falling-knife/range/trend
+  profile: `setup.profile.recorded`
 - target weights, watch/avoid actions, rebalance drafts: `decision.proposed`
+- planned, skipped, clipped, rejected, or deferred optimizer actions:
+  `action.outcome.recorded`
 - order intent, planned side, planned quantity, intended price:
   `order.intent.recorded`
 - decision result, no-order result, fill/reject/defer link:
@@ -42,6 +48,8 @@ Map local concepts to these Ellzaf events:
   `performance.snapshot.recorded`
 - strategy, setup, playbook, planned risk, regime context:
   `strategy.context.recorded`
+- same-input model, prompt, or profile comparison epochs:
+  `evaluation.epoch.started`, `evaluation.epoch.member.completed`
 - build, prompt/config hash, risk-gate version: `agent.build.recorded`
 - regression, replay, scenario, prompt, or risk-gate tests: `replay.result.recorded`
 - search credits, tokens, provider spend: `cost.usage.recorded`
@@ -57,14 +65,18 @@ Implementation steps:
 3. Create one small telemetry module that returns `AgentTracker.from_env()` and has a
    disabled/local mode for tests.
 4. Instrument the smallest stable boundaries first: run start, model call,
-   source claim, market snapshot, decision, order intent, risk check, rejected
-   trade, fill, position, performance, replay, cost, and error.
+   source claim, market snapshot, candidate board/review when present,
+   decision, action outcome, order intent, risk check, rejected trade, fill,
+   position, performance, replay, cost, and error.
 5. Add `component`, `severity`, `mistake_family`, `money_impact`,
    `blocking_status`, `resolution_status`, `next_safe_action`, `evidence_refs`,
    and `correlation_ids` when the repo already has that evidence.
 6. Add reporting-grade fields when the repo has them: `decision_id`,
    `order_intent_id`, `position_id`, `capital_flow_id`, `strategy_id`,
    `session_date`, `open_close_effect`, `fees`, and flow-adjusted PnL.
+   Add diagnostic fields when present: `board_id`, `candidate_id`,
+   `review_status`, `setup_profile_id`, `primary_regime`, `entry_permission`,
+   `action_id`, `epoch_id`, `member_id`, `context_hash`, and `coverage_penalty`.
 7. Add an integration report using `AgentTrackerIntegrationReport` and include tests
    with `assert_valid_agent_tracker_events`.
 8. Run the repo tests plus `agent-tracker validate-jsonl` on any exported events.

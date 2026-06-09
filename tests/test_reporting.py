@@ -50,6 +50,64 @@ def test_reporting_helpers_emit_strict_ready_events(tmp_path: Path) -> None:
             )
         )
         events.append(
+            run.opportunity_board(
+                board_id="board_1",
+                scope="full_universe",
+                source="stored_bars",
+                candidate_count="48",
+                reviewed_count="12",
+                excluded_count="3",
+            )
+        )
+        events.append(
+            run.candidate_review(
+                candidate_id="candidate_1",
+                board_id="board_1",
+                review_status="optimizer_skipped",
+                symbol="NVDA",
+                reason_code="turnover_capacity",
+            )
+        )
+        events.append(
+            run.setup_profile(
+                setup_profile_id="setup_1",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                symbol="NVDA",
+                trend_quality_score="80",
+            )
+        )
+        events.append(
+            run.action_outcome(
+                action_id="action_1",
+                action_kind="rebalance",
+                status="clipped",
+                symbol="NVDA",
+                requested_notional="1000.00",
+                executed_notional="600.00",
+                clipped=True,
+            )
+        )
+        events.append(
+            run.evaluation_epoch(
+                epoch_id="epoch_1",
+                epoch_kind="shadow_comparison",
+                context_hash="sha256:context",
+                expected_member_count=2,
+                candidate_count=48,
+            )
+        )
+        events.append(
+            run.evaluation_epoch_member(
+                epoch_id="epoch_1",
+                member_id="shadow_a",
+                expected=True,
+                state="completed",
+                coverage_penalty="0",
+                scored=True,
+            )
+        )
+        events.append(
             run.prompt_version(
                 family="allocation",
                 version="2026-06-07",
@@ -171,6 +229,10 @@ def test_reporting_helpers_emit_strict_ready_events(tmp_path: Path) -> None:
     assert readiness.to_dict()["strict_reporting_ready"] is True
     assert readiness.can_compute_closed_trade_stats is True
     assert readiness.can_generate_repair_prompts is True
+    assert readiness.can_diagnose_opportunity_coverage is True
+    assert readiness.can_diagnose_setup_regimes is True
+    assert readiness.can_diagnose_action_outcomes is True
+    assert readiness.can_compare_evaluation_epochs is True
     tier = assess_tier_readiness(events)
     assert tier.free_ready is False
     assert tier.basic_ready is False
@@ -282,6 +344,53 @@ def test_repair_pack_dataset_and_eval_plan_are_deterministic() -> None:
     assert dataset[0]["expected_invariant"]
     assert plan["dataset_item_count"] == len(dataset)
     assert plan["llm_judge_required"] is False
+
+
+def test_repair_pack_uses_opportunity_action_and_epoch_evidence(
+    tmp_path: Path,
+) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    events = []
+    with client.run(run_type="diagnostic", symbols=["NVDA"]) as run:
+        events.append(
+            run.candidate_review(
+                candidate_id="candidate_1",
+                board_id="board_1",
+                review_status="model_omitted",
+                symbol="NVDA",
+            )
+        )
+        events.append(
+            run.action_outcome(
+                action_id="action_1",
+                action_kind="rebalance",
+                status="skipped",
+                symbol="NVDA",
+                reason_code="candidate_missing",
+            )
+        )
+        events.append(
+            run.evaluation_epoch_member(
+                epoch_id="epoch_1",
+                member_id="shadow_a",
+                expected=True,
+                state="timeout",
+            )
+        )
+
+    pack = build_repair_pack(events, max_findings=10)
+    dataset = build_dataset_items(events)
+
+    finding_ids = {finding["finding_id"] for finding in pack["findings"]}
+    invariants = {item["expected_invariant"] for item in dataset}
+    assert "opportunity.model_omitted" in finding_ids
+    assert "action.skipped" in finding_ids
+    assert "evaluation.timeout" in finding_ids
+    assert "candidate_review_reason_preserved" in invariants
+    assert "skipped_or_clipped_action_reason_preserved" in invariants
+    assert "evaluation_epoch_coverage_preserved" in invariants
 
 
 def test_proof_and_arena_readiness_reports_gaps_and_ready_state() -> None:
@@ -402,6 +511,40 @@ def test_experiment_manifest_is_deterministic_and_requires_declared_changes() ->
                 "side": "buy",
                 "quantity": "not-a-number",
                 "price": "101.00",
+            },
+        ),
+        (
+            "opportunity.candidate.reviewed",
+            {
+                "candidate_id": "candidate_1",
+                "board_id": "board_1",
+                "review_status": "ignored",
+            },
+        ),
+        (
+            "setup.profile.recorded",
+            {
+                "setup_profile_id": "setup_1",
+                "primary_regime": "trend_continuation",
+                "entry_permission": "buy_now",
+            },
+        ),
+        (
+            "action.outcome.recorded",
+            {
+                "action_id": "action_1",
+                "action_kind": "rebalance",
+                "status": "clipped",
+                "requested_notional": "-1",
+            },
+        ),
+        (
+            "evaluation.epoch.member.completed",
+            {
+                "epoch_id": "epoch_1",
+                "member_id": "shadow_a",
+                "expected": True,
+                "state": "crashed",
             },
         ),
     ],
