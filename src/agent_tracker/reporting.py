@@ -9,7 +9,10 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from agent_tracker.constants import SCHEMA_VERSION, SDK_LANGUAGE, SDK_NAME, SDK_VERSION
 from agent_tracker.errors import SchemaValidationError
+from agent_tracker.ids import new_event_id
+from agent_tracker.serialization import hash_text, utc_now_iso
 
 REPORTING_EVENT_TYPES = {
     "agent.build.recorded",
@@ -28,6 +31,7 @@ DIAGNOSTIC_EVENT_TYPES = {
     "action.outcome.recorded",
     "evaluation.epoch.started",
     "evaluation.epoch.member.completed",
+    "diagnostic.check.completed",
 }
 
 REPORTING_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
@@ -83,6 +87,12 @@ DIAGNOSTIC_REQUIRED_PAYLOAD_FIELDS: dict[str, set[str]] = {
         "member_id",
         "expected",
         "state",
+    },
+    "diagnostic.check.completed": {
+        "check_id",
+        "check_family",
+        "status",
+        "severity",
     },
 }
 
@@ -171,6 +181,50 @@ EVALUATION_MEMBER_STATES = {
     "schema_failed",
     "not_runnable",
 }
+DIAGNOSTIC_CHECK_STATUSES = {
+    "passed",
+    "warning",
+    "failed",
+    "not_applicable",
+}
+DIAGNOSTIC_CHECK_FAMILIES = {
+    "market_data",
+    "numeric_domain",
+    "setup_profile",
+    "opportunity_coverage",
+    "risk_gate",
+    "decision_lifecycle",
+    "replay",
+    "build_release",
+    "privacy",
+    "source_quality",
+    "memory",
+    "cost",
+    "data_contract",
+    "custom",
+}
+PROFILE_SHAPE_STATUSES = {
+    "canonical",
+    "normalized_from_top_level",
+    "normalized_from_nested",
+    "defensive_default",
+    "missing",
+    "custom",
+}
+BACKFILL_STATUSES = {
+    "not_needed",
+    "completed",
+    "partial",
+    "failed",
+    "not_started",
+    "not_applicable",
+}
+DATA_CONTRACT_STATUSES = {
+    "passed",
+    "warning",
+    "failed",
+    "not_applicable",
+}
 _STRICT_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REPORTING_IDENTITY_FIELDS = {
     "action_id",
@@ -180,6 +234,8 @@ _REPORTING_IDENTITY_FIELDS = {
     "candidate_id",
     "board_id",
     "capacity_kind",
+    "check_family",
+    "check_id",
     "config_hash",
     "currency",
     "decision_id",
@@ -191,6 +247,7 @@ _REPORTING_IDENTITY_FIELDS = {
     "portfolio_kind",
     "position_id",
     "risk_gate_version",
+    "sdk_contract_version",
     "strategy_id",
     "symbol",
 }
@@ -198,24 +255,41 @@ _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "average_price",
     "case_count",
     "candidate_count",
+    "candidate_limit_count",
     "coverage_penalty",
     "data_quality_score",
     "drawdown_pct",
     "excluded_count",
+    "failed_count",
+    "fail_count",
     "executed_notional",
     "executed_quantity",
     "expected_member_count",
     "fees",
     "freshness_seconds",
+    "full_universe_count",
     "falling_knife_score",
     "false_breakout_score",
     "holding_period_seconds",
     "intended_price",
     "intended_quantity",
     "member_count",
+    "nan_count",
+    "negative_infinity_count",
+    "negative_volume_count",
+    "non_finite_count",
+    "non_positive_price_count",
+    "invalid_bar_count",
+    "invalid_ohlc_relation_count",
+    "leader_review_coverage_pct",
+    "leader_review_expected_count",
+    "leader_review_recorded_count",
     "market_price",
     "max_drawdown_pct",
     "planned_reward_risk",
+    "positive_infinity_count",
+    "pass_count",
+    "passed_count",
     "price",
     "projected_post_action_weight",
     "range_quality_score",
@@ -228,12 +302,23 @@ _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "requested_weight",
     "return_base",
     "reviewed_count",
+    "review_universe_count",
+    "sample_count",
     "selected_symbol_count",
+    "source_bar_count",
     "source_confidence",
     "stale_count",
+    "symbol_count",
+    "tape_attention_count",
+    "tape_attention_excluded_count",
+    "tape_attention_included_count",
     "target_weight",
     "trend_quality_score",
     "urgent_research_count",
+    "usable_bar_count",
+    "warning_count",
+    "zero_price_count",
+    "zero_volume_count",
 }
 _SIGNED_EXTENSION_NUMBER_FIELDS = {
     "compounded_return_pct",
@@ -248,20 +333,47 @@ _SIGNED_EXTENSION_NUMBER_FIELDS = {
     "session_return_pct",
     "one_day_return_pct",
     "one_hour_return_pct",
+    "benchmark_return_pct",
+    "data_quality_score_delta",
+    "signed_distance_max",
+    "signed_distance_min",
+    "signed_return_max",
+    "signed_return_min",
     "trading_pnl_amount",
     "trading_pnl_pct",
     "unrealized_pnl",
 }
 _BOOL_EXTENSION_FIELDS = {
     "clipped",
-    "expected",
+    "blocks_release",
+    "changed_since_last_replay",
+    "entry_permission_present",
+    "entry_regime_present",
+    "excluded_by_candidate_limit",
+    "leader_accountability_present",
+    "loaded_after_restart",
+    "post_change_verification_required",
+    "restart_safe",
     "risk_reduction",
     "scored",
+    "reviewed_by_model",
+    "reviewed_by_optimizer",
+    "selection_summary_present",
+    "signed_fields_present",
+    "tape_attention",
+    "targeted_by_optimizer",
 }
 _STRING_LIST_FIELDS = {
     "allowed_entry_modes",
+    "affected_fields",
+    "affected_symbols",
     "blocked_entry_modes",
+    "evidence_event_ids",
+    "evidence_run_ids",
+    "migration_ids",
     "reason_codes",
+    "scenario_tags",
+    "symbols_missing",
 }
 _SCORE_FIELDS = {
     "data_quality_score",
@@ -350,6 +462,56 @@ class TierReadiness:
             "privacy_score": self.privacy_score,
             "stat_coverage_score": self.stat_coverage_score,
             "repair_prompt_score": self.repair_prompt_score,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionFlowReadiness:
+    """Readiness for decision-flow diagnostics and website explanations."""
+
+    event_count: int
+    ready: bool
+    diagnostic_event_count: int
+    failed_diagnostic_count: int
+    warning_diagnostic_count: int
+    can_check_numeric_domains: bool
+    can_check_market_data_quality: bool
+    can_check_setup_profile_persistence: bool
+    can_check_opportunity_coverage: bool
+    can_check_fresh_run_proof: bool
+    numeric_domain_score: int
+    market_data_contract_score: int
+    setup_profile_persistence_score: int
+    opportunity_coverage_score: int
+    fresh_run_proof_score: int
+    decision_flow_readiness_score: int
+    gaps: tuple[str, ...]
+    warnings: tuple[str, ...]
+    failed_checks: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_count": self.event_count,
+            "ready": self.ready,
+            "diagnostic_event_count": self.diagnostic_event_count,
+            "failed_diagnostic_count": self.failed_diagnostic_count,
+            "warning_diagnostic_count": self.warning_diagnostic_count,
+            "can_check_numeric_domains": self.can_check_numeric_domains,
+            "can_check_market_data_quality": self.can_check_market_data_quality,
+            "can_check_setup_profile_persistence": (
+                self.can_check_setup_profile_persistence
+            ),
+            "can_check_opportunity_coverage": self.can_check_opportunity_coverage,
+            "can_check_fresh_run_proof": self.can_check_fresh_run_proof,
+            "numeric_domain_score": self.numeric_domain_score,
+            "market_data_contract_score": self.market_data_contract_score,
+            "setup_profile_persistence_score": self.setup_profile_persistence_score,
+            "opportunity_coverage_score": self.opportunity_coverage_score,
+            "fresh_run_proof_score": self.fresh_run_proof_score,
+            "decision_flow_readiness_score": self.decision_flow_readiness_score,
+            "gaps": list(self.gaps),
+            "warnings": list(self.warnings),
+            "failed_checks": list(self.failed_checks),
         }
 
 
@@ -545,9 +707,7 @@ def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> N
         _require_nonempty(payload, "epoch_id")
         _require_nonempty(payload, "epoch_kind")
         _require_nonempty(payload, "context_hash")
-        _require_optional_number(
-            payload, "expected_member_count", minimum=Decimal("0")
-        )
+        _require_optional_number(payload, "expected_member_count", minimum=Decimal("0"))
         _require_optional_number(payload, "candidate_count", minimum=Decimal("0"))
     elif event_type == "evaluation.epoch.member.completed":
         _require_nonempty(payload, "epoch_id")
@@ -556,6 +716,15 @@ def validate_reporting_payload(event_type: str, payload: Mapping[str, Any]) -> N
         _require_enum(payload, "state", EVALUATION_MEMBER_STATES)
         _require_optional_bool(payload, "scored")
         _require_optional_number(payload, "coverage_penalty", minimum=Decimal("0"))
+    elif event_type == "diagnostic.check.completed":
+        _require_nonempty(payload, "check_id")
+        _require_enum(payload, "check_family", DIAGNOSTIC_CHECK_FAMILIES)
+        _require_enum(payload, "status", DIAGNOSTIC_CHECK_STATUSES)
+        _require_nonempty(payload, "severity")
+        _require_optional_number(payload, "sample_count", minimum=Decimal("0"))
+        _require_optional_number(payload, "failed_count", minimum=Decimal("0"))
+        _require_optional_number(payload, "warning_count", minimum=Decimal("0"))
+        _require_optional_number(payload, "data_quality_score_delta")
 
     _validate_reporting_extensions(event_type, payload)
 
@@ -872,6 +1041,163 @@ def assess_tier_readiness(events: Iterable[Mapping[str, Any]]) -> TierReadiness:
         stat_coverage_score=_score_from_gaps(basic_gaps),
         repair_prompt_score=_score_from_gaps(pro_gaps),
     )
+
+
+def assess_decision_flow_readiness(
+    events: Iterable[Mapping[str, Any]],
+) -> DecisionFlowReadiness:
+    """Assess whether telemetry can explain agent decision-flow quality."""
+
+    event_list = list(events)
+    checks = _decision_flow_check_specs(event_list)
+    diagnostics = _diagnostic_payloads(event_list)
+    failed_diagnostics = tuple(
+        sorted(
+            str(payload.get("check_id"))
+            for payload in diagnostics
+            if payload.get("status") == "failed" and _present(payload.get("check_id"))
+        )
+    )
+    warning_diagnostics = tuple(
+        sorted(
+            str(payload.get("check_id"))
+            for payload in diagnostics
+            if payload.get("status") == "warning" and _present(payload.get("check_id"))
+        )
+    )
+    gaps = {str(check["gap"]) for check in checks if not check["can_check"]}
+    inferred_failed = {
+        str(check["check_id"]) for check in checks if check["status"] == "failed"
+    }
+    inferred_warnings = {
+        str(check["warning"])
+        for check in checks
+        if check["status"] == "warning" and _present(check.get("warning"))
+    }
+    failed_checks = tuple(sorted(set(failed_diagnostics) | inferred_failed))
+    warnings = set(warning_diagnostics) | inferred_warnings
+    if event_list and not diagnostics:
+        warnings.add("diagnostic_checks_not_emitted")
+
+    check_by_id = {str(check["check_id"]): check for check in checks}
+    score_values = [int(check["score"]) for check in checks]
+    readiness_score = int(sum(score_values) / len(score_values)) if score_values else 0
+
+    return DecisionFlowReadiness(
+        event_count=len(event_list),
+        ready=not gaps and not failed_checks,
+        diagnostic_event_count=len(diagnostics),
+        failed_diagnostic_count=len(failed_diagnostics),
+        warning_diagnostic_count=len(warning_diagnostics),
+        can_check_numeric_domains=bool(
+            check_by_id["decision_flow.numeric_domain"]["can_check"]
+        ),
+        can_check_market_data_quality=bool(
+            check_by_id["decision_flow.market_data_quality"]["can_check"]
+        ),
+        can_check_setup_profile_persistence=bool(
+            check_by_id["decision_flow.setup_profile_persistence"]["can_check"]
+        ),
+        can_check_opportunity_coverage=bool(
+            check_by_id["decision_flow.opportunity_coverage"]["can_check"]
+        ),
+        can_check_fresh_run_proof=bool(
+            check_by_id["decision_flow.fresh_run_proof"]["can_check"]
+        ),
+        numeric_domain_score=int(check_by_id["decision_flow.numeric_domain"]["score"]),
+        market_data_contract_score=int(
+            check_by_id["decision_flow.market_data_quality"]["score"]
+        ),
+        setup_profile_persistence_score=int(
+            check_by_id["decision_flow.setup_profile_persistence"]["score"]
+        ),
+        opportunity_coverage_score=int(
+            check_by_id["decision_flow.opportunity_coverage"]["score"]
+        ),
+        fresh_run_proof_score=int(
+            check_by_id["decision_flow.fresh_run_proof"]["score"]
+        ),
+        decision_flow_readiness_score=readiness_score,
+        gaps=tuple(sorted(gaps)),
+        warnings=tuple(sorted(warnings)),
+        failed_checks=failed_checks,
+    )
+
+
+def build_decision_flow_diagnostic_events(
+    events: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build privacy-safe diagnostic check events from existing telemetry."""
+
+    event_list = list(events)
+    if not event_list:
+        return []
+    reference = event_list[0]
+    checks = _decision_flow_check_specs(event_list)
+    symbols = _event_symbols(event_list)
+    run_ids = _event_run_ids(event_list)
+    evidence_event_ids = _event_ids(event_list)
+    output: list[dict[str, Any]] = []
+    fingerprint_seed = "|".join(evidence_event_ids[:100]) or str(len(event_list))
+    for check in checks:
+        check_id = str(check["check_id"])
+        idempotency_hash = hash_text(
+            f"{check_id}|{fingerprint_seed}|{len(event_list)}"
+        ).split(":", maxsplit=1)[-1][:24]
+        output.append(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "event_id": new_event_id(),
+                "idempotency_key": f"diagnostic/{check_id}/{idempotency_hash}",
+                "project": str(reference.get("project") or "local"),
+                "agent_id": str(reference.get("agent_id") or "local-agent"),
+                "run_id": str(reference.get("run_id") or "run_diagnostics"),
+                "span_id": None,
+                "parent_span_id": None,
+                "event_type": "diagnostic.check.completed",
+                "occurred_at": utc_now_iso(),
+                "environment": str(reference.get("environment") or "paper"),
+                "symbols": symbols,
+                "payload": _compact_payload(
+                    {
+                        "check_id": check_id,
+                        "check_name": check["check_name"],
+                        "check_family": check["check_family"],
+                        "status": check["status"],
+                        "severity": _severity_for_check_status(str(check["status"])),
+                        "component": check["component"],
+                        "mistake_family": check["mistake_family"],
+                        "money_impact": check["money_impact"],
+                        "blocking_status": check["blocking_status"],
+                        "resolution_status": check["resolution_status"],
+                        "next_safe_action": check["next_safe_action"],
+                        "observed": check["observed"],
+                        "expected": check["expected"],
+                        "sample_count": len(event_list),
+                        "failed_count": 1 if check["status"] == "failed" else 0,
+                        "warning_count": 1 if check["status"] == "warning" else 0,
+                        "evidence_event_ids": evidence_event_ids[:25],
+                        "evidence_run_ids": run_ids[:25],
+                        "data_quality_score_delta": check["data_quality_score_delta"],
+                    }
+                ),
+                "privacy": {
+                    "full_io": False,
+                    "redaction_version": "none",
+                    "contains_prompt_text": False,
+                    "contains_output_text": False,
+                    "contains_broker_payload": False,
+                    "contains_account_identifier": False,
+                    "truncated": False,
+                },
+                "sdk": {
+                    "name": SDK_NAME,
+                    "version": SDK_VERSION,
+                    "language": SDK_LANGUAGE,
+                },
+            }
+        )
+    return output
 
 
 def assess_agentic_security_readiness(
@@ -1205,6 +1531,488 @@ def build_experiment_manifest(
     }
 
 
+def _decision_flow_check_specs(
+    events: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    payloads = _payloads(events)
+    diagnostics = _diagnostic_payloads(events)
+    event_types = {str(event.get("event_type", "")) for event in events}
+
+    numeric_surface = _has_diagnostic_family(diagnostics, {"numeric_domain"}) or any(
+        _has_any(
+            payload,
+            {
+                "signed_fields_present",
+                "signed_return_min",
+                "signed_return_max",
+                "signed_distance_min",
+                "signed_distance_max",
+                "non_finite_count",
+                "nan_count",
+                "positive_infinity_count",
+                "negative_infinity_count",
+                "zero_price_count",
+                "zero_volume_count",
+            },
+        )
+        for payload in payloads
+    )
+    numeric_failed = _any_positive_number(
+        payloads,
+        {
+            "non_finite_count",
+            "nan_count",
+            "positive_infinity_count",
+            "negative_infinity_count",
+        },
+    )
+    numeric_warning = _any_false_bool(payloads, {"signed_fields_present"}) or (
+        not numeric_surface and bool(events)
+    )
+    numeric_status = _diagnostic_status_or_default(
+        diagnostics,
+        families={"numeric_domain"},
+        failed=numeric_failed,
+        warning=numeric_warning,
+        present=numeric_surface,
+    )
+
+    market_surface = (
+        _has_diagnostic_family(diagnostics, {"market_data", "data_contract"})
+        or "market.snapshot.recorded" in event_types
+        or any(
+            _has_any(
+                payload,
+                {
+                    "source_bar_count",
+                    "usable_bar_count",
+                    "invalid_bar_count",
+                    "invalid_ohlc_relation_count",
+                    "zero_price_count",
+                    "zero_volume_count",
+                    "non_positive_price_count",
+                    "data_contract_status",
+                    "freshness_seconds",
+                },
+            )
+            for payload in payloads
+        )
+    )
+    market_failed = _any_positive_number(
+        payloads,
+        {
+            "invalid_bar_count",
+            "invalid_ohlc_relation_count",
+            "non_positive_price_count",
+            "negative_volume_count",
+        },
+    ) or any(payload.get("data_contract_status") == "failed" for payload in payloads)
+    market_warning = _any_positive_number(
+        payloads,
+        {"stale_count", "zero_price_count", "zero_volume_count"},
+    ) or any(payload.get("data_contract_status") == "warning" for payload in payloads)
+    market_status = _diagnostic_status_or_default(
+        diagnostics,
+        families={"market_data", "data_contract"},
+        failed=market_failed,
+        warning=market_warning,
+        present=market_surface,
+    )
+
+    setup_surface = (
+        _has_diagnostic_family(diagnostics, {"setup_profile"})
+        or "setup.profile.recorded" in event_types
+        or any(
+            _has_any(
+                payload,
+                {
+                    "primary_regime",
+                    "entry_permission",
+                    "profile_shape_status",
+                    "entry_regime_present",
+                    "entry_permission_present",
+                    "loaded_after_restart",
+                    "backfill_status",
+                },
+            )
+            for payload in payloads
+        )
+    )
+    setup_failed = any(
+        payload.get("profile_shape_status") == "missing"
+        or payload.get("backfill_status") == "failed"
+        or payload.get("entry_regime_present") is False
+        or payload.get("entry_permission_present") is False
+        for payload in payloads
+    )
+    setup_warning = any(
+        payload.get("profile_shape_status")
+        in {"defensive_default", "normalized_from_top_level"}
+        or payload.get("backfill_status") in {"partial", "not_started"}
+        or payload.get("loaded_after_restart") is False
+        for payload in payloads
+    )
+    setup_status = _diagnostic_status_or_default(
+        diagnostics,
+        families={"setup_profile"},
+        failed=setup_failed,
+        warning=setup_warning,
+        present=setup_surface,
+    )
+
+    board_surface = "opportunity.board.recorded" in event_types
+    candidate_surface = "opportunity.candidate.reviewed" in event_types
+    opportunity_surface = _has_diagnostic_family(
+        diagnostics, {"opportunity_coverage"}
+    ) or (board_surface and candidate_surface)
+    opportunity_failed = any(
+        payload.get("data_contract_status") == "failed"
+        and _has_any(payload, {"board_id", "candidate_id"})
+        for payload in payloads
+    )
+    opportunity_warning = (
+        _any_true_bool(payloads, {"excluded_by_candidate_limit"})
+        or _any_positive_number(
+            payloads,
+            {"candidate_limit_count", "tape_attention_excluded_count"},
+        )
+        or _any_less_than(payloads, "leader_review_coverage_pct", Decimal("100"))
+        or any(
+            payload.get("review_status")
+            in {"model_omitted", "excluded_candidate_limit", "backfill_unknown"}
+            for payload in payloads
+        )
+    )
+    opportunity_status = _diagnostic_status_or_default(
+        diagnostics,
+        families={"opportunity_coverage"},
+        failed=opportunity_failed,
+        warning=opportunity_warning,
+        present=opportunity_surface,
+    )
+
+    build_surface = "agent.build.recorded" in event_types
+    replay_surface = "replay.result.recorded" in event_types
+    fresh_surface = _has_diagnostic_family(
+        diagnostics, {"build_release", "replay"}
+    ) or (build_surface and replay_surface)
+    fresh_failed = any(
+        payload.get("changed_since_last_replay") is True
+        and not payload.get("post_change_verification_required")
+        for payload in payloads
+    ) or any(
+        str(payload.get("status", "")).lower() in {"failed", "error"}
+        and _has_any(payload, {"suite_name", "replay_suite_version"})
+        for payload in payloads
+    )
+    fresh_warning = build_surface and not replay_surface
+    fresh_status = _diagnostic_status_or_default(
+        diagnostics,
+        families={"build_release", "replay"},
+        failed=fresh_failed,
+        warning=fresh_warning,
+        present=fresh_surface,
+    )
+
+    return [
+        _decision_check_spec(
+            check_id="decision_flow.numeric_domain",
+            check_name="Numeric domain contract",
+            check_family="numeric_domain",
+            component="data_contract",
+            can_check=numeric_surface,
+            status=numeric_status,
+            gap="numeric_domain_evidence",
+            warning="numeric_domain_contract_warning",
+            mistake_family="market.numeric_domain_confused",
+            next_safe_action="run_test",
+            observed={
+                "numeric_surface_present": numeric_surface,
+                "non_finite_present": numeric_failed,
+                "signed_fields_warning": numeric_warning,
+            },
+            expected={"finite_numbers": True, "signed_fields_preserved": True},
+            money_impact="possible",
+        ),
+        _decision_check_spec(
+            check_id="decision_flow.market_data_quality",
+            check_name="Market data quality contract",
+            check_family="market_data",
+            component="market_data",
+            can_check=market_surface,
+            status=market_status,
+            gap="market_data_quality_evidence",
+            warning="market_data_contract_warning",
+            mistake_family="market.non_finite_ohlcv",
+            next_safe_action="run_test",
+            observed={
+                "market_surface_present": market_surface,
+                "invalid_market_data_present": market_failed,
+                "stale_or_zero_data_present": market_warning,
+            },
+            expected={
+                "fresh_market_data": True,
+                "valid_ohlc_relationships": True,
+                "positive_prices": True,
+            },
+            money_impact="possible",
+        ),
+        _decision_check_spec(
+            check_id="decision_flow.setup_profile_persistence",
+            check_name="Setup profile persistence",
+            check_family="setup_profile",
+            component="decision_flow",
+            can_check=setup_surface,
+            status=setup_status,
+            gap="setup_profile_persistence_evidence",
+            warning="setup_profile_persistence_warning",
+            mistake_family="entry.profile_persistence_missing",
+            next_safe_action="repair_artifact",
+            observed={
+                "setup_surface_present": setup_surface,
+                "missing_or_failed_profile": setup_failed,
+                "profile_shape_warning": setup_warning,
+            },
+            expected={
+                "primary_regime_present": True,
+                "entry_permission_present": True,
+                "restart_safe": True,
+            },
+            money_impact="possible",
+        ),
+        _decision_check_spec(
+            check_id="decision_flow.opportunity_coverage",
+            check_name="Opportunity coverage accountability",
+            check_family="opportunity_coverage",
+            component="decision_flow",
+            can_check=opportunity_surface,
+            status=opportunity_status,
+            gap="opportunity_coverage_evidence",
+            warning="opportunity_coverage_warning",
+            mistake_family="opportunity.candidate_limit_hidden",
+            next_safe_action="repair_artifact",
+            observed={
+                "board_surface_present": board_surface,
+                "candidate_surface_present": candidate_surface,
+                "coverage_warning": opportunity_warning,
+            },
+            expected={
+                "board_recorded": True,
+                "candidate_reviews_recorded": True,
+                "omissions_explained": True,
+            },
+            money_impact="possible",
+        ),
+        _decision_check_spec(
+            check_id="decision_flow.fresh_run_proof",
+            check_name="Fresh run and replay proof",
+            check_family="build_release",
+            component="diagnostics",
+            can_check=fresh_surface,
+            status=fresh_status,
+            gap="fresh_run_proof_evidence",
+            warning="fresh_run_proof_warning",
+            mistake_family="release.fresh_run_missing",
+            next_safe_action="run_test",
+            observed={
+                "build_surface_present": build_surface,
+                "replay_surface_present": replay_surface,
+                "unverified_change_present": fresh_failed,
+            },
+            expected={
+                "build_recorded": True,
+                "replay_recorded": True,
+                "changed_builds_replayed": True,
+            },
+            money_impact="blocked" if fresh_failed else "possible",
+        ),
+    ]
+
+
+def _decision_check_spec(
+    *,
+    check_id: str,
+    check_name: str,
+    check_family: str,
+    component: str,
+    can_check: bool,
+    status: str,
+    gap: str,
+    warning: str,
+    mistake_family: str,
+    next_safe_action: str,
+    observed: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    money_impact: str,
+) -> dict[str, Any]:
+    return {
+        "check_id": check_id,
+        "check_name": check_name,
+        "check_family": check_family,
+        "component": component,
+        "can_check": can_check,
+        "status": status,
+        "score": _decision_check_score(can_check=can_check, status=status),
+        "gap": gap,
+        "warning": warning,
+        "mistake_family": mistake_family if status != "passed" else None,
+        "next_safe_action": next_safe_action if status != "passed" else "observe",
+        "observed": dict(observed),
+        "expected": dict(expected),
+        "money_impact": money_impact if status != "passed" else "none",
+        "blocking_status": "trading_blocked"
+        if status == "failed"
+        else "workflow_deferred"
+        if status == "warning"
+        else "non_blocking",
+        "resolution_status": "open" if status != "passed" else "resolved",
+        "data_quality_score_delta": -25
+        if status == "failed"
+        else (-8 if status == "warning" else 0),
+    }
+
+
+def _decision_check_score(*, can_check: bool, status: str) -> int:
+    if status == "failed":
+        return 0
+    if status == "warning":
+        return 72 if can_check else 40
+    if status == "passed":
+        return 100
+    return 0
+
+
+def _diagnostic_status_or_default(
+    diagnostics: list[Mapping[str, Any]],
+    *,
+    families: set[str],
+    failed: bool,
+    warning: bool,
+    present: bool,
+) -> str:
+    family_statuses = [
+        str(payload.get("status"))
+        for payload in diagnostics
+        if payload.get("check_family") in families
+    ]
+    if "failed" in family_statuses or failed:
+        return "failed"
+    if "warning" in family_statuses or warning:
+        return "warning"
+    if present or "passed" in family_statuses:
+        return "passed"
+    return "warning"
+
+
+def _diagnostic_payloads(
+    events: Iterable[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    return [
+        payload
+        for event in events
+        if event.get("event_type") == "diagnostic.check.completed"
+        and isinstance(payload := event.get("payload"), Mapping)
+    ]
+
+
+def _has_diagnostic_family(
+    diagnostics: Iterable[Mapping[str, Any]],
+    families: set[str],
+) -> bool:
+    return any(payload.get("check_family") in families for payload in diagnostics)
+
+
+def _event_ids(events: Iterable[Mapping[str, Any]]) -> list[str]:
+    return _unique_strings(event.get("event_id") for event in events)
+
+
+def _event_run_ids(events: Iterable[Mapping[str, Any]]) -> list[str]:
+    return _unique_strings(event.get("run_id") for event in events)
+
+
+def _event_symbols(events: Iterable[Mapping[str, Any]]) -> list[str]:
+    values: list[str] = []
+    for event in events:
+        symbols = event.get("symbols")
+        if isinstance(symbols, list):
+            values.extend(str(symbol).upper() for symbol in symbols if symbol)
+    return _unique_strings(values)
+
+
+def _unique_strings(values: Iterable[Any]) -> list[str]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        item = value.strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output
+
+
+def _compact_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def _any_positive_number(
+    payloads: Iterable[Mapping[str, Any]],
+    fields: set[str],
+) -> bool:
+    for payload in payloads:
+        for field in fields:
+            value = _optional_decimal(payload.get(field))
+            if value is not None and value > 0:
+                return True
+    return False
+
+
+def _any_less_than(
+    payloads: Iterable[Mapping[str, Any]],
+    field: str,
+    threshold: Decimal,
+) -> bool:
+    for payload in payloads:
+        value = _optional_decimal(payload.get(field))
+        if value is not None and value < threshold:
+            return True
+    return False
+
+
+def _any_false_bool(
+    payloads: Iterable[Mapping[str, Any]],
+    fields: set[str],
+) -> bool:
+    return any(payload.get(field) is False for payload in payloads for field in fields)
+
+
+def _any_true_bool(
+    payloads: Iterable[Mapping[str, Any]],
+    fields: set[str],
+) -> bool:
+    return any(payload.get(field) is True for payload in payloads for field in fields)
+
+
+def _optional_decimal(value: Any) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return parsed if parsed.is_finite() else None
+
+
+def _severity_for_check_status(status: str) -> str:
+    if status == "failed":
+        return "error"
+    if status == "warning":
+        return "warning"
+    return "info"
+
+
 def _validate_reporting_extensions(
     _event_type: str, payload: Mapping[str, Any]
 ) -> None:
@@ -1226,6 +2034,16 @@ def _validate_reporting_extensions(
         _require_enum(payload, "status", ACTION_OUTCOME_STATUSES)
     if "state" in payload and _event_type == "evaluation.epoch.member.completed":
         _require_enum(payload, "state", EVALUATION_MEMBER_STATES)
+    if "check_family" in payload:
+        _require_enum(payload, "check_family", DIAGNOSTIC_CHECK_FAMILIES)
+    if "status" in payload and _event_type == "diagnostic.check.completed":
+        _require_enum(payload, "status", DIAGNOSTIC_CHECK_STATUSES)
+    if "profile_shape_status" in payload:
+        _require_enum(payload, "profile_shape_status", PROFILE_SHAPE_STATUSES)
+    if "backfill_status" in payload:
+        _require_enum(payload, "backfill_status", BACKFILL_STATUSES)
+    if "data_contract_status" in payload:
+        _require_enum(payload, "data_contract_status", DATA_CONTRACT_STATUSES)
     if "session_date" in payload:
         _require_date(payload, "session_date")
     if "linked_event_ids" in payload:
@@ -1460,8 +2278,7 @@ def _repair_findings(
                     "severity": "warning",
                     "target_surface": "opportunity_review",
                     "message": (
-                        "Candidate review recorded "
-                        f"{payload.get('review_status')}."
+                        f"Candidate review recorded {payload.get('review_status')}."
                     ),
                     "evidence_event_ids": [event_id],
                     "suggested_tests": [

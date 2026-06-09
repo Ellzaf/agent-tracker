@@ -2,6 +2,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/replay.result.recorded.schema.json",
   "title": "replay.result.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    }
+  },
   "allOf": [
     { "$ref": "../event-envelope.schema.json" },
     {
@@ -14,7 +34,22 @@
           "properties": {
             "suite_name": { "type": "string", "minLength": 1 },
             "status": { "type": "string", "minLength": 1 },
-            "case_count": { "type": "integer", "minimum": 0 }
+            "case_count": { "type": "integer", "minimum": 0 },
+            "passed_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "failed_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "warning_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "prompt_hash": { "type": "string" },
+            "prompt_version": { "type": "string" },
+            "replay_suite_version": { "type": "string" },
+            "build_id": { "type": "string" },
+            "config_hash": { "type": "string" },
+            "scenario_tags": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "changed_since_last_replay": { "type": "boolean" },
+            "post_change_verification_required": { "type": "boolean" },
+            "data_quality_score_delta": { "$ref": "#/$defs/finiteNumber" }
           }
         }
       }

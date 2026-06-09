@@ -18,7 +18,17 @@
             "prompt_family": { "type": "string" },
             "prompt_version": { "type": "string" },
             "prompt_hash": { "type": "string" },
-            "schema_version": { "type": "string" }
+            "schema_version": { "type": "string" },
+            "sdk_contract_version": { "type": "string" },
+            "migration_ids": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "changed_since_last_replay": { "type": "boolean" },
+            "post_change_verification_required": { "type": "boolean" },
+            "data_contract_status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            }
           }
         }
       }

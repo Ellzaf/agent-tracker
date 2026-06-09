@@ -10,10 +10,12 @@ from agent_tracker.errors import SchemaValidationError
 from agent_tracker.reporting import (
     assess_agentic_security_readiness,
     assess_arena_readiness,
+    assess_decision_flow_readiness,
     assess_proof_readiness,
     assess_reporting_readiness,
     assess_tier_readiness,
     build_dataset_items,
+    build_decision_flow_diagnostic_events,
     build_eval_plan,
     build_experiment_manifest,
     build_repair_pack,
@@ -252,6 +254,148 @@ def test_strict_reporting_reports_missing_data() -> None:
 
     readiness = assess_reporting_readiness(events)
     assert "event_type:capital.flow.recorded" in readiness.missing_fields
+
+
+def test_decision_flow_readiness_and_diagnostic_generation_are_generic(
+    tmp_path: Path,
+) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    events: list[dict] = []
+    with client.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as run:
+        events.append(
+            run.market_snapshot(
+                source="stored_5m_bars",
+                source_bar_count=240,
+                usable_bar_count=240,
+                invalid_bar_count=0,
+                invalid_ohlc_relation_count=0,
+                non_finite_count=0,
+                nan_count=0,
+                positive_infinity_count=0,
+                negative_infinity_count=0,
+                zero_price_count=0,
+                zero_volume_count=0,
+                signed_fields_present=True,
+                signed_return_min="-4.2",
+                signed_return_max="7.1",
+                data_contract_status="passed",
+            )
+        )
+        events.append(
+            run.setup_profile(
+                setup_profile_id="setup_1",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                symbol="NVDA",
+                profile_shape_status="canonical",
+                loaded_after_restart=True,
+                restart_safe=True,
+                backfill_status="completed",
+            )
+        )
+        events.append(
+            run.opportunity_board(
+                board_id="board_1",
+                scope="full_universe",
+                candidate_count=20,
+                reviewed_count=20,
+                full_universe_count=100,
+                review_universe_count=100,
+                leader_review_coverage_pct="100",
+                selection_summary_present=True,
+                leader_accountability_present=True,
+            )
+        )
+        events.append(
+            run.candidate_review(
+                candidate_id="candidate_1",
+                board_id="board_1",
+                review_status="included_candidate",
+                symbol="NVDA",
+                reviewed_by_model=True,
+                reviewed_by_optimizer=True,
+            )
+        )
+        events.append(
+            run.agent_build(
+                build_id="build_1",
+                config_hash="sha256:config",
+                risk_gate_version="risk-1",
+                sdk_contract_version="0.4.0",
+                changed_since_last_replay=False,
+                post_change_verification_required=True,
+            )
+        )
+        events.append(
+            run.replay_result(
+                suite_name="decision-flow",
+                status="succeeded",
+                case_count=10,
+                replay_suite_version="decision-flow-1",
+                build_id="build_1",
+                config_hash="sha256:config",
+            )
+        )
+
+    readiness = assess_decision_flow_readiness(events)
+    diagnostics = build_decision_flow_diagnostic_events(events)
+
+    assert readiness.ready is True
+    assert readiness.gaps == ()
+    assert readiness.failed_checks == ()
+    assert len(diagnostics) == 5
+    assert_valid_agent_tracker_events(diagnostics, profile="strict-diagnostics")
+    combined = assess_decision_flow_readiness([*events, *diagnostics])
+    assert combined.diagnostic_event_count == 5
+    assert combined.decision_flow_readiness_score == 100
+
+
+def test_decision_flow_readiness_detects_failing_contracts(tmp_path: Path) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    events: list[dict] = []
+    with client.run(run_type="portfolio_allocation", symbols=["NVDA"]) as run:
+        events.append(
+            run.market_snapshot(
+                source="stored_5m_bars",
+                source_bar_count=100,
+                usable_bar_count=97,
+                non_finite_count=1,
+                invalid_ohlc_relation_count=2,
+                signed_fields_present=False,
+                data_contract_status="failed",
+            )
+        )
+        events.append(
+            run.setup_profile(
+                setup_profile_id="setup_1",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                symbol="NVDA",
+                profile_shape_status="missing",
+                backfill_status="failed",
+                entry_regime_present=False,
+            )
+        )
+
+    readiness = assess_decision_flow_readiness(events)
+    diagnostics = build_decision_flow_diagnostic_events(events)
+
+    assert readiness.ready is False
+    assert "decision_flow.numeric_domain" in readiness.failed_checks
+    assert "decision_flow.market_data_quality" in readiness.failed_checks
+    assert "decision_flow.setup_profile_persistence" in readiness.failed_checks
+    assert "opportunity_coverage_evidence" in readiness.gaps
+    assert "fresh_run_proof_evidence" in readiness.gaps
+    assert any(
+        event["payload"]["status"] == "failed"
+        and event["payload"]["check_family"] == "market_data"
+        for event in diagnostics
+    )
+    assert_valid_agent_tracker_events(diagnostics)
 
 
 def test_reporting_fixtures_are_strict_reporting_ready() -> None:
@@ -545,6 +689,25 @@ def test_experiment_manifest_is_deterministic_and_requires_declared_changes() ->
                 "member_id": "shadow_a",
                 "expected": True,
                 "state": "crashed",
+            },
+        ),
+        (
+            "diagnostic.check.completed",
+            {
+                "check_id": "decision_flow.numeric_domain",
+                "check_family": "not_real",
+                "status": "warning",
+                "severity": "warning",
+            },
+        ),
+        (
+            "diagnostic.check.completed",
+            {
+                "check_id": "decision_flow.numeric_domain",
+                "check_family": "numeric_domain",
+                "status": "warning",
+                "severity": "warning",
+                "failed_count": "-1",
             },
         ),
     ],

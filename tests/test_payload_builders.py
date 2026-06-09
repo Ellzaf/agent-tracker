@@ -12,6 +12,7 @@ from agent_tracker import (
     CapitalFlowPayload,
     Config,
     DecisionOutcomePayload,
+    DiagnosticCheckPayload,
     EvaluationEpochMemberPayload,
     EvaluationEpochPayload,
     OpportunityBoardPayload,
@@ -233,6 +234,22 @@ def test_typed_payload_builders_emit_valid_events(tmp_path: Path) -> None:
                 prompt_hash="sha256:prompt",
             ).to_payload(),
         ),
+        client.event(
+            "diagnostic.check.completed",
+            run_id="run_builders",
+            payload=DiagnosticCheckPayload(
+                check_id="decision_flow.numeric_domain",
+                check_family="numeric_domain",
+                status="passed",
+                severity="info",
+                component="data_contract",
+                observed={"signed_fields_present": True},
+                expected={"signed_fields_preserved": True},
+                sample_count=10,
+                failed_count=0,
+                warning_count=0,
+            ).to_payload(),
+        ),
     ]
 
     assert_valid_agent_tracker_events(events)
@@ -279,4 +296,19 @@ def test_typed_payload_builders_reject_invalid_reporting_values() -> None:
             expected=True,
             state="timeout",
             coverage_penalty="-1",
+        ).to_payload()
+
+    with pytest.raises(SchemaValidationError):
+        DiagnosticCheckPayload(
+            check_id="decision_flow.numeric_domain",
+            check_family="numeric_domain",
+            status="unknown",
+        ).to_payload()
+
+    with pytest.raises(SchemaValidationError):
+        DiagnosticCheckPayload(
+            check_id="decision_flow.numeric_domain",
+            check_family="numeric_domain",
+            status="failed",
+            failed_count="-1",
         ).to_payload()

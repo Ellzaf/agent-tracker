@@ -228,8 +228,7 @@ def test_cli_emit_reporting_sample_validate_and_show_readiness(
 
     dataset_output = tmp_path / "dataset.jsonl"
     assert (
-        main(["dataset-from-events", str(path), "--output", str(dataset_output)])
-        == 0
+        main(["dataset-from-events", str(path), "--output", str(dataset_output)]) == 0
     )
     dataset_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
     assert dataset_summary["dataset_item_count"] >= 1
@@ -238,6 +237,90 @@ def test_cli_emit_reporting_sample_validate_and_show_readiness(
     assert main(["eval-plan", str(path), "--output", str(eval_output)]) == 0
     eval_summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
     assert eval_summary["output"] == str(eval_output)
+
+
+def test_cli_diagnose_generates_valid_decision_flow_events(
+    tmp_path: Path,
+    capsys: object,
+) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    with client.run(run_type="diagnostic", symbols=["NVDA"]) as run:
+        events = [
+            run.market_snapshot(
+                source="stored_5m_bars",
+                source_bar_count=100,
+                usable_bar_count=100,
+                invalid_bar_count=0,
+                invalid_ohlc_relation_count=0,
+                non_finite_count=0,
+                signed_fields_present=True,
+                signed_return_min="-1.0",
+                signed_return_max="2.0",
+                data_contract_status="passed",
+            ),
+            run.setup_profile(
+                setup_profile_id="setup_1",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                profile_shape_status="canonical",
+                loaded_after_restart=True,
+                backfill_status="completed",
+            ),
+            run.opportunity_board(
+                board_id="board_1",
+                scope="full_universe",
+                candidate_count=10,
+                reviewed_count=10,
+                leader_review_coverage_pct="100",
+            ),
+            run.candidate_review(
+                candidate_id="candidate_1",
+                board_id="board_1",
+                review_status="included_candidate",
+                symbol="NVDA",
+            ),
+            run.agent_build(
+                build_id="build_1",
+                config_hash="sha256:config",
+                risk_gate_version="risk-1",
+            ),
+            run.replay_result(
+                suite_name="decision-flow",
+                status="succeeded",
+                case_count=5,
+                replay_suite_version="replay-1",
+            ),
+        ]
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        "".join(f"{strict_json_dumps(event)}\n" for event in events),
+        encoding="utf-8",
+    )
+    output = tmp_path / "diagnostics.jsonl"
+
+    assert main(["decision-flow-readiness", str(path)]) == 0
+    readiness = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert readiness["ready"] is True
+
+    assert main(["diagnose", str(path), "--output", str(output)]) == 0
+    summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert summary["diagnostic_event_count"] == 5
+    assert output.exists()
+    assert main(["validate-jsonl", str(output), "--profile", "strict-diagnostics"]) == 0
+    validated = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert validated["decision_flow_readiness"]["diagnostic_event_count"] == 5
+
+
+def test_cli_diagnose_can_fail_on_warning(tmp_path: Path, capsys: object) -> None:
+    event = read_json_resource("schemas", "fixtures", "valid", "stale-market-tape.json")
+    path = tmp_path / "events.jsonl"
+    path.write_text(f"{strict_json_dumps(event)}\n", encoding="utf-8")
+
+    assert main(["diagnose", str(path), "--fail-on", "warning"]) == 1
+    summary = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert summary["decision_flow_readiness"]["warning_diagnostic_count"] >= 1
 
 
 def test_cli_validate_jsonl_rejects_raw_prompt(tmp_path: Path) -> None:
@@ -289,8 +372,7 @@ def test_cli_doctor_repo_writes_coding_agent_plan(tmp_path: Path) -> None:
     plan = tmp_path / "agent-tracker-plan.md"
 
     assert (
-        main(["doctor-repo", "--path", str(tmp_path), "--write-plan", str(plan)])
-        == 0
+        main(["doctor-repo", "--path", str(tmp_path), "--write-plan", str(plan)]) == 0
     )
 
     text = plan.read_text(encoding="utf-8")

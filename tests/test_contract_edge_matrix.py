@@ -174,6 +174,13 @@ def _payload_for(event_type: str, scenario: int) -> dict[str, object]:
             "expected": True,
             "state": "completed",
         },
+        "diagnostic.check.completed": {
+            "check_id": f"decision_flow.matrix_{scenario}",
+            "check_family": "numeric_domain",
+            "status": "warning",
+            "severity": "warning",
+            "component": "data_contract",
+        },
         "replay.result.recorded": {
             "suite_name": "matrix",
             "status": "succeeded",

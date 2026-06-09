@@ -67,6 +67,7 @@ Add richer events when you want hosted stats and weekly repair prompts.
 | Strategy, setup, market regime | `strategy.context.recorded` |
 | Same-input model or agent comparisons | `evaluation.epoch.started`, `evaluation.epoch.member.completed` |
 | Build, config, risk-gate version | `agent.build.recorded` |
+| Local checks your agent or CI already runs | `diagnostic.check.completed` |
 | Cost and errors | `cost.usage.recorded`, `error.recorded` |
 
 ## Install
@@ -152,8 +153,9 @@ export ELLZAF_MAX_UPLOAD_BYTES_PER_DAY=""
 ```
 
 Leave these blank unless your agent is high volume. Errors, failed risk checks,
-rejected trades, fills, portfolio snapshots, performance snapshots, and replay
-results are preserved by default even when sampling is enabled.
+failed or warning diagnostics, rejected trades, fills, portfolio snapshots,
+performance snapshots, and replay results are preserved by default even when
+sampling is enabled.
 
 ## Quick Start
 
@@ -179,6 +181,9 @@ with tracker.run(run_type="portfolio_allocation", symbols=["NVDA", "MSFT"]) as r
         source="local_bars",
         freshness_seconds=180,
         session_state="regular",
+        signed_fields_present=True,
+        non_finite_count=0,
+        invalid_ohlc_relation_count=0,
     )
 
     run.decision_proposed(
@@ -284,6 +289,51 @@ with tracker.run(run_type="shadow_comparison") as run:
         scored=True,
     )
 ```
+
+## Add Decision-Flow Diagnostics
+
+Stats show what happened. Diagnostics explain whether the data is strong enough
+to trust the explanation.
+
+Agent Tracker can help Ellzaf answer questions like:
+
+- Did the agent preserve signed returns instead of clamping negative values?
+- Were OHLCV rows finite, fresh, and internally valid?
+- Did setup profiles keep regime and entry-permission fields after restart?
+- Were candidate boards and missed opportunities recorded with reasons?
+- Did a prompt, config, or risk-gate change get replayed before release?
+
+If your agent already runs a check, record it directly:
+
+```python
+with tracker.run(run_type="pre_trade_diagnostics", symbols=["NVDA"]) as run:
+    run.diagnostic_check(
+        check_id="decision_flow.market_data_quality",
+        check_family="market_data",
+        status="warning",
+        severity="warning",
+        component="market_data",
+        mistake_family="market.open_session_stale_bars",
+        money_impact="possible",
+        blocking_status="workflow_deferred",
+        resolution_status="open",
+        next_safe_action="run_test",
+        observed={"freshness_seconds": 900},
+        expected={"fresh_market_data": True},
+    )
+```
+
+You can also generate local diagnostic check events from an exported JSONL file:
+
+```bash
+agent-tracker decision-flow-readiness ellzaf-events.jsonl
+agent-tracker diagnose ellzaf-events.jsonl --output ellzaf-diagnostics.jsonl
+agent-tracker validate-jsonl ellzaf-diagnostics.jsonl --profile strict-diagnostics
+```
+
+These commands do not call an LLM and do not upload anything. They make it
+easier for coding agents to verify an integration before you send data to
+Ellzaf.
 
 For a smaller transition, wrap one function and let the SDK flush after the run:
 
@@ -478,6 +528,8 @@ Build local product artifacts:
 ```bash
 agent-tracker tier-readiness ellzaf-reporting.jsonl
 agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker decision-flow-readiness ellzaf-reporting.jsonl
+agent-tracker diagnose ellzaf-reporting.jsonl --output ellzaf-diagnostics.jsonl
 agent-tracker proof-readiness ellzaf-reporting.jsonl
 agent-tracker arena-readiness ellzaf-reporting.jsonl
 agent-tracker repair-pack ellzaf-reporting.jsonl --output repair-pack.json
@@ -644,6 +696,7 @@ or proof pages:
 
 ```python
 assert_valid_agent_tracker_events(events, profile="strict-reporting")
+assert_valid_agent_tracker_events(events, profile="strict-diagnostics")
 assert_valid_agent_tracker_events(events, profile="strict-arena")
 assert_valid_agent_tracker_events(events, profile="strict-proof")
 ```
@@ -666,9 +719,12 @@ agent-tracker emit-sample --profile ebook --output ellzaf-sample.jsonl
 agent-tracker emit-sample --profile reporting --output ellzaf-reporting.jsonl
 agent-tracker validate-jsonl ellzaf-sample.jsonl
 agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-reporting
+agent-tracker validate-jsonl ellzaf-reporting.jsonl --profile strict-diagnostics
 agent-tracker reporting-readiness ellzaf-reporting.jsonl
 agent-tracker tier-readiness ellzaf-reporting.jsonl
 agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker decision-flow-readiness ellzaf-reporting.jsonl
+agent-tracker diagnose ellzaf-reporting.jsonl --output ellzaf-diagnostics.jsonl
 agent-tracker proof-readiness ellzaf-reporting.jsonl
 agent-tracker arena-readiness ellzaf-reporting.jsonl
 agent-tracker repair-pack ellzaf-reporting.jsonl --output repair-pack.json

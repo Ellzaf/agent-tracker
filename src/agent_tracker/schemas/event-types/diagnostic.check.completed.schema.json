@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/diagnostic.check.completed.schema.json",
+  "title": "diagnostic.check.completed",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    { "$ref": "../event-envelope.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "diagnostic.check.completed" },
+        "payload": {
+          "type": "object",
+          "required": ["check_id", "check_family", "status", "severity"],
+          "properties": {
+            "check_id": { "type": "string", "minLength": 1 },
+            "check_name": { "type": "string", "minLength": 1 },
+            "check_family": {
+              "enum": [
+                "market_data",
+                "numeric_domain",
+                "setup_profile",
+                "opportunity_coverage",
+                "risk_gate",
+                "decision_lifecycle",
+                "replay",
+                "build_release",
+                "privacy",
+                "source_quality",
+                "memory",
+                "cost",
+                "data_contract",
+                "custom"
+              ]
+            },
+            "status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            },
+            "severity": {
+              "enum": ["info", "warning", "error", "critical"]
+            },
+            "component": { "type": "string" },
+            "mistake_family": { "type": "string" },
+            "money_impact": { "type": "string" },
+            "blocking_status": { "type": "string" },
+            "resolution_status": { "type": "string" },
+            "next_safe_action": { "type": "string" },
+            "observed": { "type": "object", "additionalProperties": true },
+            "expected": { "type": "object", "additionalProperties": true },
+            "sample_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "failed_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "warning_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "affected_symbols": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "affected_fields": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "evidence_event_ids": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^evt_[A-Za-z0-9_\\-]+$" }
+            },
+            "evidence_run_ids": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^run_[A-Za-z0-9_\\-]+$" }
+            },
+            "input_snapshot_hash": { "type": "string" },
+            "context_hash": { "type": "string" },
+            "build_id": { "type": "string" },
+            "config_hash": { "type": "string" },
+            "replay_suite_version": { "type": "string" },
+            "repair_hint_id": { "type": "string" },
+            "data_quality_score_delta": { "$ref": "#/$defs/finiteNumber" }
+          }
+        }
+      }
+    }
+  ]
+}

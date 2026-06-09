@@ -659,6 +659,11 @@ class AgentTracker:
             return True
         if self.config.always_capture_errors and event_type == "error.recorded":
             return True
+        if event_type == "diagnostic.check.completed" and payload_map.get("status") in {
+            "failed",
+            "warning",
+        }:
+            return True
         if (
             self.config.always_capture_risk_blocks
             and event_type == "risk.check.completed"
@@ -1284,6 +1289,28 @@ class Run:
                 "state": state,
                 **payload,
             },
+        )
+
+    def diagnostic_check(
+        self,
+        *,
+        check_id: str,
+        check_family: str,
+        status: str,
+        severity: str = "info",
+        symbols: list[str] | tuple[str, ...] | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "diagnostic.check.completed",
+            payload={
+                "check_id": check_id,
+                "check_family": check_family,
+                "status": status,
+                "severity": severity,
+                **payload,
+            },
+            symbols=symbols or self.symbols,
         )
 
     def cost_usage(

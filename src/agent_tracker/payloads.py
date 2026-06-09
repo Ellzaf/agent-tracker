@@ -212,6 +212,39 @@ class ActionOutcomePayload(PayloadBuilder):
 
 
 @dataclass(frozen=True, slots=True)
+class DiagnosticCheckPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "diagnostic.check.completed"
+
+    check_id: str
+    check_family: str
+    status: str
+    severity: str = "info"
+    check_name: str | None = None
+    component: str | None = None
+    mistake_family: str | None = None
+    money_impact: str | None = None
+    blocking_status: str | None = None
+    resolution_status: str | None = None
+    next_safe_action: str | None = None
+    observed: dict[str, Any] | None = None
+    expected: dict[str, Any] | None = None
+    sample_count: Any | None = None
+    failed_count: Any | None = None
+    warning_count: Any | None = None
+    affected_symbols: list[str] | None = None
+    affected_fields: list[str] | None = None
+    evidence_event_ids: list[str] | None = None
+    evidence_run_ids: list[str] | None = None
+    input_snapshot_hash: str | None = None
+    context_hash: str | None = None
+    build_id: str | None = None
+    config_hash: str | None = None
+    replay_suite_version: str | None = None
+    repair_hint_id: str | None = None
+    data_quality_score_delta: Any | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationEpochPayload(PayloadBuilder):
     event_type: ClassVar[str] = "evaluation.epoch.started"
 

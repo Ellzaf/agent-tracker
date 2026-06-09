@@ -212,9 +212,48 @@ def test_sampling_keeps_errors_and_risk_blocks_when_rate_is_zero(
         run_id="run_sample",
         payload={"error_kind": "timeout", "message": "provider timeout"},
     )
+    client.event(
+        "diagnostic.check.completed",
+        run_id="run_sample",
+        payload={
+            "check_id": "decision_flow.numeric_domain",
+            "check_family": "numeric_domain",
+            "status": "warning",
+            "severity": "warning",
+            "component": "data_contract",
+        },
+    )
 
     event_types = [event["event_type"] for event in read_pending(tmp_path)]
-    assert event_types == ["risk.check.completed", "error.recorded"]
+    assert event_types == [
+        "risk.check.completed",
+        "error.recorded",
+        "diagnostic.check.completed",
+    ]
+
+
+def test_run_helper_emits_diagnostic_check(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+
+    with client.run(run_type="diagnostic", symbols=["NVDA"]) as run:
+        event = run.diagnostic_check(
+            check_id="decision_flow.opportunity_coverage",
+            check_family="opportunity_coverage",
+            status="failed",
+            severity="error",
+            component="decision_flow",
+            mistake_family="opportunity.candidate_limit_hidden",
+            money_impact="possible",
+            blocking_status="workflow_deferred",
+            resolution_status="open",
+            next_safe_action="repair_artifact",
+            observed={"candidate_limit_count": 10},
+            expected={"omissions_explained": True},
+        )
+
+    assert event["event_type"] == "diagnostic.check.completed"
+    assert event["payload"]["check_family"] == "opportunity_coverage"
+    assert read_pending(tmp_path)[1]["event_id"] == event["event_id"]
 
 
 def test_event_budget_drops_optional_events_and_records_warning(

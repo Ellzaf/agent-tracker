@@ -35,7 +35,12 @@
         "market.partial_tape_as_truth",
         "market.old_partial_tape_in_memory",
         "market.sector_taxonomy_drift",
-        "market.leader_laggard_missing"
+        "market.leader_laggard_missing",
+        "market.signed_return_clamped",
+        "market.non_finite_ohlcv",
+        "market.invalid_ohlc_relation",
+        "market.zero_confused_as_missing",
+        "market.numeric_domain_confused"
       ]
     },
     {
@@ -51,7 +56,19 @@
       "values": [
         "entry.near_miss_not_reconsidered",
         "entry.chase_class_wrong",
-        "entry.starter_becomes_full_size"
+        "entry.starter_becomes_full_size",
+        "entry.profile_shape_missing",
+        "entry.profile_persistence_missing",
+        "entry.profile_backfill_missing",
+        "entry.permission_lost_after_restart"
+      ]
+    },
+    {
+      "category": "opportunity",
+      "values": [
+        "opportunity.candidate_limit_hidden",
+        "opportunity.leader_review_missing",
+        "opportunity.selection_summary_missing"
       ]
     },
     {
@@ -136,6 +153,26 @@
       "values": [
         "replay.external_api_called",
         "replay.target_posture_as_exact_pnl"
+      ]
+    },
+    {
+      "category": "release",
+      "values": [
+        "release.fresh_run_missing"
+      ]
+    },
+    {
+      "category": "schema",
+      "values": [
+        "schema.backfill_missing",
+        "schema.migration_drift"
+      ]
+    },
+    {
+      "category": "diagnostic",
+      "values": [
+        "diagnostic.check_missing",
+        "diagnostic.check_stale"
       ]
     },
     {

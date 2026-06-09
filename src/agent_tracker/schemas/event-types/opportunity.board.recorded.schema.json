@@ -40,7 +40,22 @@
             "reviewed_count": { "$ref": "#/$defs/nonNegativeNumber" },
             "excluded_count": { "$ref": "#/$defs/nonNegativeNumber" },
             "stale_count": { "$ref": "#/$defs/nonNegativeNumber" },
-            "urgent_research_count": { "$ref": "#/$defs/nonNegativeNumber" }
+            "urgent_research_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "full_universe_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "review_universe_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "candidate_limit_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "selected_symbol_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "tape_attention_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "tape_attention_included_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "tape_attention_excluded_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "leader_review_expected_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "leader_review_recorded_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "leader_review_coverage_pct": { "$ref": "#/$defs/nonNegativeNumber" },
+            "selection_summary_present": { "type": "boolean" },
+            "leader_accountability_present": { "type": "boolean" },
+            "data_contract_status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            }
           }
         }
       }

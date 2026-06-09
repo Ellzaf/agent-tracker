@@ -82,7 +82,38 @@
             "false_breakout_score": { "$ref": "#/$defs/scoreNumber" },
             "falling_knife_score": { "$ref": "#/$defs/scoreNumber" },
             "recommended_starter_cap_pct": { "$ref": "#/$defs/nonNegativeNumber" },
-            "invalidation_reference": { "type": "string" }
+            "invalidation_reference": { "type": "string" },
+            "profile_shape_status": {
+              "enum": [
+                "canonical",
+                "normalized_from_top_level",
+                "normalized_from_nested",
+                "defensive_default",
+                "missing",
+                "custom"
+              ]
+            },
+            "entry_regime_present": { "type": "boolean" },
+            "entry_permission_present": { "type": "boolean" },
+            "loaded_after_restart": { "type": "boolean" },
+            "restart_safe": { "type": "boolean" },
+            "backfill_status": {
+              "enum": [
+                "not_needed",
+                "completed",
+                "partial",
+                "failed",
+                "not_started",
+                "not_applicable"
+              ]
+            },
+            "migration_ids": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "data_contract_status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            }
           }
         }
       }

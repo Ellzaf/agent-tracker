@@ -74,7 +74,15 @@
             },
             "reason_code": { "type": "string" },
             "data_quality_score": { "$ref": "#/$defs/scoreNumber" },
-            "context_hash": { "type": "string" }
+            "context_hash": { "type": "string" },
+            "reviewed_by_model": { "type": "boolean" },
+            "reviewed_by_optimizer": { "type": "boolean" },
+            "targeted_by_optimizer": { "type": "boolean" },
+            "excluded_by_candidate_limit": { "type": "boolean" },
+            "tape_attention": { "type": "boolean" },
+            "data_contract_status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            }
           }
         }
       }

@@ -148,6 +148,18 @@ def payload_for(event_type: str, variant: int) -> dict:
             "state": "completed",
             "coverage_penalty": "0",
         },
+        "diagnostic.check.completed": {
+            "check_id": f"decision_flow.matrix_{variant}",
+            "check_family": "numeric_domain",
+            "status": "warning",
+            "severity": "warning",
+            "component": "data_contract",
+            "observed": {"variant": variant},
+            "expected": {"finite_numbers": True},
+            "sample_count": variant,
+            "failed_count": 0,
+            "warning_count": 1,
+        },
         "replay.result.recorded": {
             "suite_name": "matrix",
             "status": "passed",

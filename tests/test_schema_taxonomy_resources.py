@@ -40,7 +40,13 @@ def test_taxonomies_are_package_data_and_have_expected_escape_hatch() -> None:
     assert "portfolio.buying_power_as_cash" in families
     assert "pnl.deposit_as_profit" in families
     assert "shadow.unfair_cadence" in families
+    assert "market.numeric_domain_confused" in families
+    assert "entry.profile_persistence_missing" in families
+    assert "opportunity.candidate_limit_hidden" in families
+    assert "release.fresh_run_missing" in families
     assert "risk_gate" in taxonomy_values("component")
+    assert "decision_flow" in taxonomy_values("component")
+    assert "data_contract" in taxonomy_values("component")
 
     validate_mistake_family("custom.local_failure")
     with pytest.raises(SchemaValidationError):
@@ -108,8 +114,10 @@ def test_upload_response_contract_fixtures_are_package_data() -> None:
         assert set(response) == {"accepted", "duplicates", "rejected"}
         assert isinstance(response["rejected"], list)
         if name != "invalid-count-mismatch.json":
-            total = response["accepted"] + response["duplicates"] + len(
-                response["rejected"]
+            total = (
+                response["accepted"]
+                + response["duplicates"]
+                + len(response["rejected"])
             )
             assert total == 1
 

@@ -93,6 +93,7 @@
         "strategy.context.recorded",
         "evaluation.epoch.started",
         "evaluation.epoch.member.completed",
+        "diagnostic.check.completed",
         "replay.result.recorded",
         "cost.usage.recorded",
         "error.recorded"
@@ -143,6 +144,9 @@
             "broker_runner",
             "chat",
             "cost",
+            "data_contract",
+            "decision_flow",
+            "diagnostics",
             "doctor",
             "execution",
             "harness",

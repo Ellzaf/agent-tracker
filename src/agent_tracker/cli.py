@@ -24,10 +24,12 @@ from agent_tracker.queue import LocalQueue
 from agent_tracker.reporting import (
     assess_agentic_security_readiness,
     assess_arena_readiness,
+    assess_decision_flow_readiness,
     assess_proof_readiness,
     assess_reporting_readiness,
     assess_tier_readiness,
     build_dataset_items,
+    build_decision_flow_diagnostic_events,
     build_eval_plan,
     build_experiment_manifest,
     build_repair_pack,
@@ -52,6 +54,7 @@ _VALIDATION_PROFILES = {
     "ebook",
     "aitrade",
     "strict-base",
+    "strict-diagnostics",
     "strict-reporting",
     "strict-arena",
     "strict-proof",
@@ -97,6 +100,29 @@ def _parser() -> argparse.ArgumentParser:
     tier_readiness.add_argument("path")
     tier_readiness.add_argument("--allow-full-io", action="store_true")
     tier_readiness.set_defaults(func=_cmd_tier_readiness)
+
+    decision_flow_readiness = subparsers.add_parser(
+        "decision-flow-readiness",
+        help="show decision-flow diagnostic readiness",
+    )
+    decision_flow_readiness.add_argument("path")
+    decision_flow_readiness.add_argument("--allow-full-io", action="store_true")
+    decision_flow_readiness.set_defaults(func=_cmd_decision_flow_readiness)
+
+    diagnose = subparsers.add_parser(
+        "diagnose",
+        help="build local diagnostic check events from a JSONL export",
+    )
+    diagnose.add_argument("path")
+    diagnose.add_argument("--output")
+    diagnose.add_argument("--allow-full-io", action="store_true")
+    diagnose.add_argument(
+        "--fail-on",
+        choices=["never", "warning", "failed"],
+        default="failed",
+        help="return a non-zero exit code when generated diagnostics reach this level",
+    )
+    diagnose.set_defaults(func=_cmd_diagnose)
 
     security_readiness = subparsers.add_parser(
         "agentic-security-readiness",
@@ -282,6 +308,10 @@ def _cmd_validate_jsonl(args: argparse.Namespace) -> int:
     result: dict[str, Any] = {"valid": True, "event_count": len(events)}
     if args.profile in {"strict-reporting", "strict-arena", "strict-proof"}:
         result["reporting_readiness"] = assess_reporting_readiness(events).to_dict()
+    if args.profile == "strict-diagnostics":
+        result["decision_flow_readiness"] = assess_decision_flow_readiness(
+            events
+        ).to_dict()
     print(strict_json_dumps(result))
     return 0
 
@@ -297,6 +327,41 @@ def _cmd_tier_readiness(args: argparse.Namespace) -> int:
     events = read_jsonl_events(args.path)
     assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
     print(strict_json_dumps(assess_tier_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_decision_flow_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_decision_flow_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_diagnose(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    diagnostics = build_decision_flow_diagnostic_events(events)
+    assert_valid_agent_tracker_events(diagnostics, allow_full_io=args.allow_full_io)
+    readiness = assess_decision_flow_readiness([*events, *diagnostics])
+    if args.output:
+        JsonlSink(args.output, append=False).write_many(diagnostics)
+    result = {
+        "input_event_count": len(events),
+        "diagnostic_event_count": len(diagnostics),
+        "output": args.output,
+        "decision_flow_readiness": readiness.to_dict(),
+    }
+    print(strict_json_dumps(result))
+    if args.fail_on == "never":
+        return 0
+    if args.fail_on == "failed" and readiness.failed_diagnostic_count:
+        return 1
+    if args.fail_on == "warning" and (
+        readiness.failed_diagnostic_count
+        or readiness.warning_diagnostic_count
+        or readiness.gaps
+    ):
+        return 1
     return 0
 
 
@@ -390,9 +455,7 @@ def _cmd_experiment_manifest(args: argparse.Namespace) -> int:
 def _cmd_queue_health(args: argparse.Namespace) -> int:
     queue = LocalQueue(Path(args.queue_dir), max_queue_bytes=args.max_queue_bytes)
     print(
-        strict_json_dumps(
-            asdict(queue.health(max_batch_events=args.max_batch_events))
-        )
+        strict_json_dumps(asdict(queue.health(max_batch_events=args.max_batch_events)))
     )
     return 0
 

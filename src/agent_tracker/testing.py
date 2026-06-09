@@ -14,7 +14,10 @@ from agent_tracker.redaction import (
     PROMPT_TEXT_KEYS,
     SECRET_PATTERNS,
 )
-from agent_tracker.reporting import assess_reporting_readiness
+from agent_tracker.reporting import (
+    assess_decision_flow_readiness,
+    assess_reporting_readiness,
+)
 from agent_tracker.schema import validate_event
 
 _EBOOK_REQUIRED_EVENT_TYPES = {
@@ -72,6 +75,8 @@ def assert_valid_agent_tracker_events(
         )
     if normalized_profile == "strict-reporting":
         _assert_reporting_ready(event_list)
+    if normalized_profile == "strict-diagnostics":
+        _assert_decision_flow_ready(event_list)
     if normalized_profile == "strict-arena":
         _assert_reporting_ready(event_list)
         readiness = assess_reporting_readiness(event_list)
@@ -93,6 +98,22 @@ def _assert_reporting_ready(events: list[Mapping[str, Any]]) -> None:
     if not readiness.strict_reporting_ready:
         missing = ", ".join(readiness.missing_fields)
         raise AssertionError(f"events are missing reporting data: {missing}")
+
+
+def _assert_decision_flow_ready(events: list[Mapping[str, Any]]) -> None:
+    readiness = assess_decision_flow_readiness(events)
+    if not readiness.ready:
+        missing = ", ".join(readiness.gaps)
+        failed = ", ".join(readiness.failed_checks)
+        detail = "; ".join(
+            item
+            for item in (
+                f"missing diagnostics data: {missing}" if missing else "",
+                f"failed diagnostic checks: {failed}" if failed else "",
+            )
+            if item
+        )
+        raise AssertionError(detail or "events are not diagnostics-ready")
 
 
 def _assert_private(

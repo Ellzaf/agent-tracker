@@ -9,6 +9,8 @@ import pytest
 from agent_tracker import AgentTracker, Config
 from agent_tracker.reporting import (
     ACTION_OUTCOME_STATUSES,
+    DIAGNOSTIC_CHECK_FAMILIES,
+    DIAGNOSTIC_CHECK_STATUSES,
     ENTRY_PERMISSIONS,
     ENTRY_REGIMES,
     EVALUATION_MEMBER_STATES,
@@ -31,6 +33,8 @@ def test_diagnostic_telemetry_matrix_covers_more_than_1000_edge_cases(
     )
     action_statuses = sorted(ACTION_OUTCOME_STATUSES)
     member_states = sorted(EVALUATION_MEMBER_STATES)
+    diagnostic_families = sorted(DIAGNOSTIC_CHECK_FAMILIES)
+    diagnostic_statuses = sorted(DIAGNOSTIC_CHECK_STATUSES)
     scenario_count = 0
 
     for review_status in sorted(OPPORTUNITY_REVIEW_STATUSES):
@@ -95,9 +99,7 @@ def test_diagnostic_telemetry_matrix_covers_more_than_1000_edge_cases(
                             "symbol": symbol,
                             "requested_notional": str(scenario_count % 10_000),
                             "executed_notional": str(scenario_count % 5_000),
-                            "remaining_capacity_before": str(
-                                10_000 + scenario_count
-                            ),
+                            "remaining_capacity_before": str(10_000 + scenario_count),
                             "remaining_capacity_after": str(scenario_count % 10_000),
                             "clipped": scenario_count % 2 == 0,
                             "risk_reduction": scenario_count % 3 == 0,
@@ -122,11 +124,27 @@ def test_diagnostic_telemetry_matrix_covers_more_than_1000_edge_cases(
                             "epoch_id": f"epoch_{suffix}",
                             "member_id": f"member_{scenario_count % 13}",
                             "expected": True,
-                            "state": member_states[
-                                scenario_count % len(member_states)
-                            ],
+                            "state": member_states[scenario_count % len(member_states)],
                             "coverage_penalty": str(scenario_count % 100),
                             "scored": scenario_count % 5 != 0,
+                        },
+                    ),
+                    client.event(
+                        "diagnostic.check.completed",
+                        run_id=run_id,
+                        symbols=[symbol],
+                        payload={
+                            "check_id": f"decision_flow.check_{suffix}",
+                            "check_family": diagnostic_families[
+                                scenario_count % len(diagnostic_families)
+                            ],
+                            "status": diagnostic_statuses[
+                                scenario_count % len(diagnostic_statuses)
+                            ],
+                            "severity": "warning",
+                            "sample_count": str(scenario_count % 250),
+                            "failed_count": "0",
+                            "warning_count": str(scenario_count % 3),
                         },
                     ),
                 ]
@@ -202,6 +220,18 @@ def test_diagnostic_telemetry_matrix_covers_more_than_1000_edge_cases(
             },
             "coverage_penalty",
             "-0.5",
+        ),
+        (
+            "diagnostic.check.completed",
+            {
+                "check_id": "decision_flow.numeric_domain",
+                "check_family": "numeric_domain",
+                "status": "warning",
+                "severity": "warning",
+                "sample_count": "1",
+            },
+            "sample_count",
+            "-1",
         ),
     ],
 )

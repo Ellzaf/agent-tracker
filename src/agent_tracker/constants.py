@@ -1,7 +1,7 @@
 """Shared constants for the Ellzaf Agent Tracker SDK."""
 
 SDK_NAME = "agent-tracker-python"
-SDK_VERSION = "0.3.0"
+SDK_VERSION = "0.4.0"
 SDK_USER_AGENT = f"{SDK_NAME}/{SDK_VERSION}"
 SDK_LANGUAGE = "python"
 SCHEMA_VERSION = "2026-06-07"
@@ -54,6 +54,7 @@ SUPPORTED_EVENT_TYPES = {
     "strategy.context.recorded",
     "evaluation.epoch.started",
     "evaluation.epoch.member.completed",
+    "diagnostic.check.completed",
     "replay.result.recorded",
     "cost.usage.recorded",
     "error.recorded",

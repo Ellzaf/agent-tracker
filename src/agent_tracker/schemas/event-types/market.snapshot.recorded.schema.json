@@ -2,6 +2,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ellzaf.com/schemas/agent-tracker/event-types/market.snapshot.recorded.schema.json",
   "title": "market.snapshot.recorded",
+  "$defs": {
+    "finiteNumber": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[+-]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    "nonNegativeNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
+        }
+      ]
+    }
+  },
   "allOf": [
     { "$ref": "../event-envelope.schema.json" },
     {
@@ -12,7 +32,28 @@
           "type": "object",
           "required": ["source"],
           "properties": {
-            "source": { "type": "string", "minLength": 1 }
+            "source": { "type": "string", "minLength": 1 },
+            "source_bar_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "usable_bar_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "invalid_bar_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "invalid_ohlc_relation_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "non_finite_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "nan_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "positive_infinity_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "negative_infinity_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "non_positive_price_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "zero_price_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "zero_volume_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "negative_volume_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "freshness_seconds": { "$ref": "#/$defs/nonNegativeNumber" },
+            "signed_return_min": { "$ref": "#/$defs/finiteNumber" },
+            "signed_return_max": { "$ref": "#/$defs/finiteNumber" },
+            "signed_distance_min": { "$ref": "#/$defs/finiteNumber" },
+            "signed_distance_max": { "$ref": "#/$defs/finiteNumber" },
+            "signed_fields_present": { "type": "boolean" },
+            "data_contract_status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            }
           }
         }
       }
