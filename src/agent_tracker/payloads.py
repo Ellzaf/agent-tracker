@@ -141,6 +141,66 @@ class StrategyContextPayload(PayloadBuilder):
 
 
 @dataclass(frozen=True, slots=True)
+class SymbolBehaviorStatePayload(PayloadBuilder):
+    event_type: ClassVar[str] = "strategy.context.recorded"
+
+    strategy_id: str
+    symbol: str
+    authority: str = "observe_only"
+    context_kind: str = "symbol_behavior_state"
+    model_version: str | None = None
+    primary_regime: str | None = None
+    entry_permission: str | None = None
+    research_freshness_state: str | None = None
+    data_contract_status: str | None = None
+    data_quality_score: Any | None = None
+    current_price: Any | None = None
+    atr_pct: Any | None = None
+    liquidity_score: Any | None = None
+    spread_cost_estimate_r: Any | None = None
+    slippage_cost_estimate_r: Any | None = None
+    executable_edge_penalty_r: Any | None = None
+    trend_quality_score: Any | None = None
+    range_quality_score: Any | None = None
+    false_breakout_score: Any | None = None
+    falling_knife_score: Any | None = None
+    winner_continuation_score: Any | None = None
+    average_down_legitimacy_score: Any | None = None
+    expected_return_r_session: Any | None = None
+    expected_downside_r_session: Any | None = None
+    source_refs: list[str] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HoldingExitStatePayload(PayloadBuilder):
+    event_type: ClassVar[str] = "strategy.context.recorded"
+
+    strategy_id: str
+    symbol: str
+    authority: str = "observe_only"
+    context_kind: str = "holding_exit_state"
+    model_version: str | None = None
+    current_weight: Any | None = None
+    target_cap_weight: Any | None = None
+    unrealized_pnl_pct: Any | None = None
+    unrealized_pnl_r: Any | None = None
+    trend_hold_bonus_r: Any | None = None
+    range_bounce_protection_r: Any | None = None
+    support_break_score: Any | None = None
+    trend_break_score: Any | None = None
+    relative_weakness_score: Any | None = None
+    failed_reclaim_score: Any | None = None
+    cut_loss_score: Any | None = None
+    expected_recovery_r: Any | None = None
+    recommended_exit_state: str | None = None
+    sell_guard_reason: str | None = None
+    trim_to_cap_allowed: bool | None = None
+    winner_add_allowed: bool | None = None
+    average_down_allowed: bool | None = None
+    source_refs: list[str] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class OpportunityBoardPayload(PayloadBuilder):
     event_type: ClassVar[str] = "opportunity.board.recorded"
 
@@ -170,6 +230,46 @@ class CandidateReviewPayload(PayloadBuilder):
     reason_code: str | None = None
     data_quality_score: Any | None = None
     context_hash: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PairwiseRotationReviewPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "opportunity.candidate.reviewed"
+
+    candidate_id: str
+    board_id: str
+    review_status: str
+    holding_symbol: str
+    candidate_symbol: str
+    candidate_kind: str = "pairwise_rotation"
+    source: str | None = "behavior_intelligence"
+    lane: str | None = "rotation_review"
+    rank: Any | None = None
+    market_regime: str | None = None
+    observer_decision: str | None = None
+    passes_threshold: bool | None = None
+    u_hold_r: Any | None = None
+    u_enter_r: Any | None = None
+    rotation_cost_r: Any | None = None
+    delta_u_r: Any | None = None
+    theta_rotation_r: Any | None = None
+    holding_exit_state: str | None = None
+    candidate_entry_state: str | None = None
+    primary_reasons: list[str] | None = None
+    blocked_reasons: list[str] | None = None
+    reviewed_by_model: bool | None = False
+    reviewed_by_optimizer: bool | None = False
+    targeted_by_optimizer: bool | None = False
+    data_contract_status: str | None = None
+    context_hash: str | None = None
+
+    def to_payload(self, extra: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        payload = _compact(to_jsonable(asdict(self)))
+        payload["symbol"] = payload.get("candidate_symbol")
+        if extra:
+            payload.update(_compact(to_jsonable(dict(extra))))
+        validate_reporting_payload(self.event_type, payload)
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,6 +395,30 @@ class ReplayResultPayload(PayloadBuilder):
     prompt_version: str | None = None
     replay_suite_version: str | None = None
     scenario_tags: list[str] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ThresholdReplayPayload(PayloadBuilder):
+    event_type: ClassVar[str] = "replay.result.recorded"
+
+    suite_name: str
+    status: str
+    case_count: int
+    threshold_policy_version: str
+    replay_suite_version: str | None = None
+    scenario_tags: list[str] | None = None
+    threshold_pass_count: Any | None = None
+    bad_rotation_count: Any | None = None
+    selected_review_count: Any | None = None
+    selected_bad_count: Any | None = None
+    selected_bad_rate: Any | None = None
+    bad_rate: Any | None = None
+    activation_allowed: bool | None = None
+    activation_scope: str | None = None
+    leakage_guard_passed: bool | None = None
+    lookahead_guard_passed: bool | None = None
+    outcome_window_closed: bool | None = None
+    average_selected_forward_return_pct: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)

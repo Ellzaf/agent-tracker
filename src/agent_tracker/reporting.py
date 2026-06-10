@@ -253,10 +253,16 @@ _REPORTING_IDENTITY_FIELDS = {
 }
 _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "average_price",
+    "atr_pct",
+    "average_down_legitimacy_score",
+    "bad_rate",
+    "bad_rotation_count",
     "case_count",
     "candidate_count",
     "candidate_limit_count",
     "coverage_penalty",
+    "current_price",
+    "cut_loss_score",
     "data_quality_score",
     "drawdown_pct",
     "excluded_count",
@@ -264,15 +270,18 @@ _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "fail_count",
     "executed_notional",
     "executed_quantity",
+    "executable_edge_penalty_r",
     "expected_member_count",
     "fees",
     "freshness_seconds",
     "full_universe_count",
     "falling_knife_score",
+    "failed_reclaim_score",
     "false_breakout_score",
     "holding_period_seconds",
     "intended_price",
     "intended_quantity",
+    "liquidity_score",
     "member_count",
     "nan_count",
     "negative_infinity_count",
@@ -295,8 +304,10 @@ _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "range_quality_score",
     "rank",
     "recommended_starter_cap_pct",
+    "relative_weakness_score",
     "remaining_capacity_after",
     "remaining_capacity_before",
+    "rotation_cost_r",
     "requested_notional",
     "requested_quantity",
     "requested_weight",
@@ -304,46 +315,71 @@ _NON_NEGATIVE_EXTENSION_NUMBER_FIELDS = {
     "reviewed_count",
     "review_universe_count",
     "sample_count",
+    "selected_bad_count",
+    "selected_bad_rate",
+    "selected_review_count",
     "selected_symbol_count",
+    "slippage_cost_estimate_r",
     "source_bar_count",
     "source_confidence",
+    "spread_cost_estimate_r",
     "stale_count",
+    "support_break_score",
     "symbol_count",
     "tape_attention_count",
     "tape_attention_excluded_count",
     "tape_attention_included_count",
+    "target_cap_weight",
     "target_weight",
+    "theta_rotation_r",
+    "threshold_pass_count",
+    "trend_break_score",
     "trend_quality_score",
     "urgent_research_count",
     "usable_bar_count",
+    "winner_continuation_score",
     "warning_count",
     "zero_price_count",
     "zero_volume_count",
 }
 _SIGNED_EXTENSION_NUMBER_FIELDS = {
+    "average_selected_forward_return_pct",
     "compounded_return_pct",
     "cost_basis",
+    "delta_u_r",
     "flow_adjusted_equity_change",
+    "current_weight",
     "market_value",
     "net_pnl_amount",
     "planned_risk_amount",
     "planned_risk_pct",
     "raw_equity_change",
+    "range_bounce_protection_r",
     "realized_pnl",
     "session_return_pct",
     "one_day_return_pct",
     "one_hour_return_pct",
     "benchmark_return_pct",
     "data_quality_score_delta",
+    "expected_downside_r_session",
+    "expected_recovery_r",
+    "expected_return_r_session",
     "signed_distance_max",
     "signed_distance_min",
     "signed_return_max",
     "signed_return_min",
     "trading_pnl_amount",
     "trading_pnl_pct",
+    "trend_hold_bonus_r",
+    "u_enter_r",
+    "u_hold_r",
     "unrealized_pnl",
+    "unrealized_pnl_pct",
+    "unrealized_pnl_r",
 }
 _BOOL_EXTENSION_FIELDS = {
+    "activation_allowed",
+    "average_down_allowed",
     "clipped",
     "blocks_release",
     "changed_since_last_replay",
@@ -351,7 +387,11 @@ _BOOL_EXTENSION_FIELDS = {
     "entry_regime_present",
     "excluded_by_candidate_limit",
     "leader_accountability_present",
+    "leakage_guard_passed",
     "loaded_after_restart",
+    "lookahead_guard_passed",
+    "outcome_window_closed",
+    "passes_threshold",
     "post_change_verification_required",
     "restart_safe",
     "risk_reduction",
@@ -362,25 +402,42 @@ _BOOL_EXTENSION_FIELDS = {
     "signed_fields_present",
     "tape_attention",
     "targeted_by_optimizer",
+    "threshold_calibrated",
+    "trim_to_cap_allowed",
+    "winner_add_allowed",
 }
 _STRING_LIST_FIELDS = {
+    "activation_failed_gates",
+    "activation_passed_gates",
     "allowed_entry_modes",
     "affected_fields",
     "affected_symbols",
     "blocked_entry_modes",
+    "blocked_reasons",
     "evidence_event_ids",
     "evidence_run_ids",
+    "hard_block_reasons",
     "migration_ids",
+    "primary_reasons",
     "reason_codes",
     "scenario_tags",
+    "source_refs",
     "symbols_missing",
 }
 _SCORE_FIELDS = {
+    "average_down_legitimacy_score",
+    "cut_loss_score",
     "data_quality_score",
     "falling_knife_score",
+    "failed_reclaim_score",
     "false_breakout_score",
+    "liquidity_score",
     "range_quality_score",
+    "relative_weakness_score",
+    "support_break_score",
+    "trend_break_score",
     "trend_quality_score",
+    "winner_continuation_score",
 }
 
 
@@ -512,6 +569,46 @@ class DecisionFlowReadiness:
             "gaps": list(self.gaps),
             "warnings": list(self.warnings),
             "failed_checks": list(self.failed_checks),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class BehaviorIntelligenceReadiness:
+    """Readiness for symbol behavior, cut-loss, and rotation diagnostics."""
+
+    event_count: int
+    ready: bool
+    symbol_behavior_state_count: int
+    holding_exit_state_count: int
+    pairwise_rotation_review_count: int
+    threshold_replay_count: int
+    activation_gate_count: int
+    can_explain_entry_regimes: bool
+    can_explain_cut_loss: bool
+    can_explain_pairwise_rotation: bool
+    can_calibrate_thresholds: bool
+    can_check_leakage_guards: bool
+    behavior_readiness_score: int
+    gaps: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_count": self.event_count,
+            "ready": self.ready,
+            "symbol_behavior_state_count": self.symbol_behavior_state_count,
+            "holding_exit_state_count": self.holding_exit_state_count,
+            "pairwise_rotation_review_count": self.pairwise_rotation_review_count,
+            "threshold_replay_count": self.threshold_replay_count,
+            "activation_gate_count": self.activation_gate_count,
+            "can_explain_entry_regimes": self.can_explain_entry_regimes,
+            "can_explain_cut_loss": self.can_explain_cut_loss,
+            "can_explain_pairwise_rotation": self.can_explain_pairwise_rotation,
+            "can_calibrate_thresholds": self.can_calibrate_thresholds,
+            "can_check_leakage_guards": self.can_check_leakage_guards,
+            "behavior_readiness_score": self.behavior_readiness_score,
+            "gaps": list(self.gaps),
+            "warnings": list(self.warnings),
         }
 
 
@@ -1200,6 +1297,147 @@ def build_decision_flow_diagnostic_events(
     return output
 
 
+def assess_behavior_intelligence_readiness(
+    events: Iterable[Mapping[str, Any]],
+) -> BehaviorIntelligenceReadiness:
+    """Assess whether telemetry can explain entries, exits, and rotations."""
+
+    event_list = list(events)
+    payloads = _payloads(event_list)
+    symbol_states = [
+        payload for payload in payloads if _is_symbol_behavior_state(payload)
+    ]
+    holding_states = [
+        payload for payload in payloads if _is_holding_exit_state(payload)
+    ]
+    pairwise_reviews = [
+        payload for payload in payloads if _is_pairwise_rotation_review(payload)
+    ]
+    threshold_replays = [
+        payload for event in event_list
+        if event.get("event_type") == "replay.result.recorded"
+        and isinstance(payload := event.get("payload"), Mapping)
+        and _is_threshold_replay(payload)
+    ]
+    activation_gates = [
+        payload for event in event_list
+        if event.get("event_type") == "diagnostic.check.completed"
+        and isinstance(payload := event.get("payload"), Mapping)
+        and _has_any(payload, {"activation_allowed", "activation_scope"})
+    ]
+
+    gaps: set[str] = set()
+    warnings: set[str] = set()
+
+    can_explain_entry_regimes = any(
+        _has_fields(payload, {"symbol", "primary_regime", "entry_permission"})
+        and _has_any(
+            payload,
+            {
+                "trend_quality_score",
+                "range_quality_score",
+                "false_breakout_score",
+                "falling_knife_score",
+                "winner_continuation_score",
+            },
+        )
+        for payload in symbol_states
+    )
+    if not can_explain_entry_regimes:
+        gaps.add("symbol_behavior_state")
+
+    can_explain_cut_loss = any(
+        _has_fields(payload, {"symbol"})
+        and _has_any(
+            payload,
+            {
+                "cut_loss_score",
+                "expected_recovery_r",
+                "support_break_score",
+                "trend_break_score",
+                "relative_weakness_score",
+                "recommended_exit_state",
+            },
+        )
+        for payload in holding_states
+    )
+    if not can_explain_cut_loss:
+        gaps.add("holding_exit_state")
+
+    can_explain_pairwise_rotation = any(
+        _has_fields(payload, {"holding_symbol", "candidate_symbol", "delta_u_r"})
+        and _has_any(payload, {"theta_rotation_r", "rotation_cost_r"})
+        for payload in pairwise_reviews
+    )
+    if not can_explain_pairwise_rotation:
+        gaps.add("pairwise_rotation_review")
+
+    can_calibrate_thresholds = any(
+        _has_fields(payload, {"threshold_policy_version", "selected_bad_rate"})
+        and _has_any(payload, {"threshold_pass_count", "selected_review_count"})
+        for payload in threshold_replays
+    )
+    if not can_calibrate_thresholds:
+        gaps.add("threshold_replay")
+
+    guard_fields = {
+        "leakage_guard_passed",
+        "lookahead_guard_passed",
+        "outcome_window_closed",
+    }
+    guard_payloads = threshold_replays + activation_gates
+    guard_surface = any(_has_any(payload, guard_fields) for payload in guard_payloads)
+    guard_failed = any(
+        payload.get(field) is False
+        for payload in guard_payloads
+        for field in guard_fields
+    )
+    can_check_leakage_guards = guard_surface and not guard_failed
+    if not guard_surface:
+        gaps.add("leakage_guard_evidence")
+    elif guard_failed:
+        gaps.add("leakage_guard_failed")
+
+    if symbol_states and not any(
+        _has_any(payload, {"source_refs"}) for payload in symbol_states
+    ):
+        warnings.add("symbol_behavior_source_refs_missing")
+    if pairwise_reviews and not any(
+        _has_any(payload, {"primary_reasons", "blocked_reasons"})
+        for payload in pairwise_reviews
+    ):
+        warnings.add("pairwise_reasons_missing")
+    if threshold_replays and not activation_gates:
+        warnings.add("activation_gate_not_recorded")
+    if any(
+        payload.get("authority") not in {None, "observe_only"}
+        for payload in payloads
+    ):
+        warnings.add("non_observe_authority_requires_release_controls")
+
+    score = _score_from_gaps(gaps)
+    if warnings:
+        score = max(0, score - min(20, len(warnings) * 5))
+
+    return BehaviorIntelligenceReadiness(
+        event_count=len(event_list),
+        ready=not gaps,
+        symbol_behavior_state_count=len(symbol_states),
+        holding_exit_state_count=len(holding_states),
+        pairwise_rotation_review_count=len(pairwise_reviews),
+        threshold_replay_count=len(threshold_replays),
+        activation_gate_count=len(activation_gates),
+        can_explain_entry_regimes=can_explain_entry_regimes,
+        can_explain_cut_loss=can_explain_cut_loss,
+        can_explain_pairwise_rotation=can_explain_pairwise_rotation,
+        can_calibrate_thresholds=can_calibrate_thresholds,
+        can_check_leakage_guards=can_check_leakage_guards,
+        behavior_readiness_score=score,
+        gaps=tuple(sorted(gaps)),
+        warnings=tuple(sorted(warnings)),
+    )
+
+
 def assess_agentic_security_readiness(
     events: Iterable[Mapping[str, Any]],
 ) -> AgenticSecurityReadiness:
@@ -1421,12 +1659,14 @@ def build_repair_pack(
     event_list = list(events)
     tier = assess_tier_readiness(event_list)
     security = assess_agentic_security_readiness(event_list)
-    findings = _repair_findings(event_list, tier, security)[:max_findings]
+    behavior = assess_behavior_intelligence_readiness(event_list)
+    findings = _repair_findings(event_list, tier, security, behavior)[:max_findings]
     return {
         "version": "2026-06-08",
         "event_count": len(event_list),
         "tier_readiness": tier.to_dict(),
         "agentic_security_readiness": security.to_dict(),
+        "behavior_intelligence_readiness": behavior.to_dict(),
         "findings": findings,
         "prompt": _repair_prompt(findings),
     }
@@ -1449,7 +1689,12 @@ def build_dataset_items(events: Iterable[Mapping[str, Any]]) -> list[dict[str, A
             "opportunity.candidate.reviewed",
             "action.outcome.recorded",
             "evaluation.epoch.member.completed",
+            "strategy.context.recorded",
         }:
+            continue
+        if event.get("event_type") == "strategy.context.recorded" and not (
+            _is_symbol_behavior_state(payload) or _is_holding_exit_state(payload)
+        ):
             continue
         items.append(
             {
@@ -2177,6 +2422,62 @@ def _payloads(events: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     ]
 
 
+def _is_symbol_behavior_state(payload: Mapping[str, Any]) -> bool:
+    context_kind = str(payload.get("context_kind") or "")
+    if context_kind in {
+        "symbol_behavior_state",
+        "symbol_state_card",
+        "rotation_symbol_state_card",
+    }:
+        return True
+    return _has_fields(payload, {"symbol"}) and _has_any(
+        payload,
+        {
+            "primary_regime",
+            "entry_permission",
+            "winner_continuation_score",
+            "average_down_legitimacy_score",
+        },
+    )
+
+
+def _is_holding_exit_state(payload: Mapping[str, Any]) -> bool:
+    context_kind = str(payload.get("context_kind") or "")
+    if context_kind in {"holding_exit_state", "holding_exit_state_card"}:
+        return True
+    return _has_fields(payload, {"symbol"}) and _has_any(
+        payload,
+        {
+            "cut_loss_score",
+            "expected_recovery_r",
+            "recommended_exit_state",
+            "sell_guard_reason",
+        },
+    )
+
+
+def _is_pairwise_rotation_review(payload: Mapping[str, Any]) -> bool:
+    if payload.get("candidate_kind") == "pairwise_rotation":
+        return True
+    return _has_fields(payload, {"holding_symbol", "candidate_symbol"}) and _has_any(
+        payload,
+        {"delta_u_r", "theta_rotation_r", "passes_threshold"},
+    )
+
+
+def _is_threshold_replay(payload: Mapping[str, Any]) -> bool:
+    return _has_any(
+        payload,
+        {
+            "threshold_policy_version",
+            "selected_bad_rate",
+            "threshold_pass_count",
+            "bad_rotation_count",
+            "activation_scope",
+        },
+    )
+
+
 def _privacy_flag(event: Mapping[str, Any], field: str) -> bool:
     privacy = event.get("privacy")
     return isinstance(privacy, Mapping) and privacy.get(field) is True
@@ -2202,9 +2503,32 @@ def _repair_findings(
     events: list[Mapping[str, Any]],
     tier: TierReadiness,
     security: AgenticSecurityReadiness,
+    behavior: BehaviorIntelligenceReadiness,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     readiness_findings: list[dict[str, Any]] = []
+    for gap in behavior.gaps:
+        readiness_findings.append(
+            {
+                "finding_id": f"behavior.{gap}",
+                "severity": "warning",
+                "target_surface": "behavior_intelligence",
+                "message": f"Behavior intelligence is missing {gap}.",
+                "evidence_event_ids": [],
+                "suggested_tests": ["run behavior-readiness"],
+            }
+        )
+    for warning in behavior.warnings:
+        readiness_findings.append(
+            {
+                "finding_id": f"behavior.warning.{warning}",
+                "severity": "warning",
+                "target_surface": "behavior_intelligence",
+                "message": f"Behavior intelligence warning: {warning}.",
+                "evidence_event_ids": [],
+                "suggested_tests": ["add or rerun behavior replay coverage"],
+            }
+        )
     for gap in tier.pro_gaps:
         readiness_findings.append(
             {
@@ -2262,6 +2586,62 @@ def _repair_findings(
             continue
         event_id = event.get("event_id")
         event_type = event.get("event_type")
+        if event_type == "strategy.context.recorded" and _is_holding_exit_state(
+            payload
+        ):
+            cut_loss_score = _optional_decimal(payload.get("cut_loss_score"))
+            if cut_loss_score is not None and cut_loss_score >= Decimal("80"):
+                findings.append(
+                    {
+                        "finding_id": "behavior.cut_loss_score_elevated",
+                        "severity": "warning",
+                        "target_surface": "holding_exit_state",
+                        "message": (
+                            "Holding exit state recorded elevated cut-loss pressure."
+                        ),
+                        "evidence_event_ids": [event_id],
+                        "suggested_tests": [
+                            "replay the symbol-specific exit and recovery scenario"
+                        ],
+                    }
+                )
+        pairwise_review = (
+            event_type == "opportunity.candidate.reviewed"
+            and _is_pairwise_rotation_review(payload)
+        )
+        if pairwise_review:
+            if payload.get("passes_threshold") is False:
+                findings.append(
+                    {
+                        "finding_id": "behavior.rotation_threshold_blocked",
+                        "severity": "info",
+                        "target_surface": "pairwise_rotation_review",
+                        "message": "Pairwise rotation review did not pass threshold.",
+                        "evidence_event_ids": [event_id],
+                        "suggested_tests": [
+                            "replay the switch threshold with the same input snapshot"
+                        ],
+                    }
+                )
+            if payload.get("passes_threshold") is True and payload.get(
+                "blocked_reasons"
+            ):
+                findings.append(
+                    {
+                        "finding_id": "behavior.rotation_inconsistent_block",
+                        "severity": "warning",
+                        "target_surface": "pairwise_rotation_review",
+                        "message": (
+                            "Pairwise rotation passed threshold but still has "
+                            "blocked reasons."
+                        ),
+                        "evidence_event_ids": [event_id],
+                        "suggested_tests": [
+                            "add a consistency test for threshold pass and block "
+                            "reasons"
+                        ],
+                    }
+                )
         if event_type == "opportunity.candidate.reviewed" and payload.get(
             "review_status"
         ) in {
@@ -2362,11 +2742,19 @@ def _expected_invariant(event: Mapping[str, Any]) -> str:
     if event_type == "error.recorded":
         return "error_path_has_safe_terminal_state"
     if event_type == "replay.result.recorded":
+        if _is_threshold_replay(payload):
+            return "threshold_replay_preserves_leakage_guards"
         return "replay_suite_passes_or_reports_failures"
     if event_type == "decision.outcome.recorded":
         return "decision_outcome_links_to_evidence"
     if event_type == "opportunity.candidate.reviewed":
+        if _is_pairwise_rotation_review(payload):
+            return "pairwise_rotation_threshold_preserved"
         return "candidate_review_reason_preserved"
+    if event_type == "strategy.context.recorded" and _is_symbol_behavior_state(payload):
+        return "symbol_behavior_state_preserved"
+    if event_type == "strategy.context.recorded" and _is_holding_exit_state(payload):
+        return "holding_exit_state_preserved"
     if event_type == "action.outcome.recorded":
         return "skipped_or_clipped_action_reason_preserved"
     if event_type == "evaluation.epoch.member.completed":

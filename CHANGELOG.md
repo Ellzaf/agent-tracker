@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Added behavior-intelligence payload builders and `Run` helpers for symbol
+  behavior state, holding exit state, pairwise rotation reviews, threshold
+  replay proof, and activation gates.
+- Added behavior readiness assessment, `strict-behavior` validation, and
+  `agent-tracker behavior-readiness`.
+- Added repair-pack and dataset extraction support for rotation, cut-loss, and
+  threshold replay evidence.
+- Documented how custom AI trading agents can send observe-only behavior
+  telemetry without changing execution behavior.
+
 ## 0.3.0 - 2026-06-09
 
 - Added general opportunity-board and candidate-review telemetry for tracking

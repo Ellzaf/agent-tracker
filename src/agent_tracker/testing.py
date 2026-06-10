@@ -15,6 +15,7 @@ from agent_tracker.redaction import (
     SECRET_PATTERNS,
 )
 from agent_tracker.reporting import (
+    assess_behavior_intelligence_readiness,
     assess_decision_flow_readiness,
     assess_reporting_readiness,
 )
@@ -77,6 +78,8 @@ def assert_valid_agent_tracker_events(
         _assert_reporting_ready(event_list)
     if normalized_profile == "strict-diagnostics":
         _assert_decision_flow_ready(event_list)
+    if normalized_profile == "strict-behavior":
+        _assert_behavior_intelligence_ready(event_list)
     if normalized_profile == "strict-arena":
         _assert_reporting_ready(event_list)
         readiness = assess_reporting_readiness(event_list)
@@ -114,6 +117,15 @@ def _assert_decision_flow_ready(events: list[Mapping[str, Any]]) -> None:
             if item
         )
         raise AssertionError(detail or "events are not diagnostics-ready")
+
+
+def _assert_behavior_intelligence_ready(events: list[Mapping[str, Any]]) -> None:
+    readiness = assess_behavior_intelligence_readiness(events)
+    if not readiness.ready:
+        missing = ", ".join(readiness.gaps)
+        raise AssertionError(
+            f"events are missing behavior intelligence data: {missing}"
+        )
 
 
 def _assert_private(

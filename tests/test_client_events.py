@@ -223,11 +223,25 @@ def test_sampling_keeps_errors_and_risk_blocks_when_rate_is_zero(
             "component": "data_contract",
         },
     )
+    client.event(
+        "diagnostic.check.completed",
+        run_id="run_sample",
+        payload={
+            "check_id": "behavior.activation_gate",
+            "check_family": "replay",
+            "status": "passed",
+            "severity": "info",
+            "component": "diagnostics",
+            "activation_allowed": True,
+            "activation_scope": "observe_only",
+        },
+    )
 
     event_types = [event["event_type"] for event in read_pending(tmp_path)]
     assert event_types == [
         "risk.check.completed",
         "error.recorded",
+        "diagnostic.check.completed",
         "diagnostic.check.completed",
     ]
 

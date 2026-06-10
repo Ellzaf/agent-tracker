@@ -664,6 +664,10 @@ class AgentTracker:
             "warning",
         }:
             return True
+        if event_type == "diagnostic.check.completed" and (
+            "activation_allowed" in payload_map or "activation_scope" in payload_map
+        ):
+            return True
         if (
             self.config.always_capture_risk_blocks
             and event_type == "risk.check.completed"
@@ -1132,6 +1136,23 @@ class Run:
             },
         )
 
+    def threshold_replay(
+        self,
+        *,
+        suite_name: str,
+        status: str,
+        case_count: int,
+        threshold_policy_version: str,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.replay_result(
+            suite_name=suite_name,
+            status=status,
+            case_count=case_count,
+            threshold_policy_version=threshold_policy_version,
+            **payload,
+        )
+
     def agent_build(
         self,
         *,
@@ -1172,6 +1193,52 @@ class Run:
             symbols=symbols or self.symbols,
         )
 
+    def symbol_behavior_state(
+        self,
+        *,
+        state_id: str,
+        symbol: str,
+        authority: str = "observe_only",
+        context_kind: str = "symbol_behavior_state",
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "strategy.context.recorded",
+            payload=_compact(
+                {
+                    "strategy_id": state_id,
+                    "context_kind": context_kind,
+                    "symbol": symbol,
+                    "authority": authority,
+                    **payload,
+                }
+            ),
+            symbols=[symbol],
+        )
+
+    def holding_exit_state(
+        self,
+        *,
+        state_id: str,
+        symbol: str,
+        authority: str = "observe_only",
+        context_kind: str = "holding_exit_state",
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "strategy.context.recorded",
+            payload=_compact(
+                {
+                    "strategy_id": state_id,
+                    "context_kind": context_kind,
+                    "symbol": symbol,
+                    "authority": authority,
+                    **payload,
+                }
+            ),
+            symbols=[symbol],
+        )
+
     def opportunity_board(
         self,
         *,
@@ -1205,6 +1272,38 @@ class Run:
                 }
             ),
             symbols=[symbol] if symbol else self.symbols,
+        )
+
+    def pairwise_rotation_review(
+        self,
+        *,
+        review_id: str,
+        board_id: str,
+        holding_symbol: str,
+        candidate_symbol: str,
+        review_status: str,
+        candidate_kind: str = "pairwise_rotation",
+        source: str = "behavior_intelligence",
+        lane: str = "rotation_review",
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.event(
+            "opportunity.candidate.reviewed",
+            payload=_compact(
+                {
+                    "candidate_id": review_id,
+                    "board_id": board_id,
+                    "candidate_kind": candidate_kind,
+                    "source": source,
+                    "lane": lane,
+                    "review_status": review_status,
+                    "holding_symbol": holding_symbol,
+                    "candidate_symbol": candidate_symbol,
+                    "symbol": candidate_symbol,
+                    **payload,
+                }
+            ),
+            symbols=[holding_symbol, candidate_symbol],
         )
 
     def setup_profile(
@@ -1311,6 +1410,29 @@ class Run:
                 **payload,
             },
             symbols=symbols or self.symbols,
+        )
+
+    def activation_gate(
+        self,
+        *,
+        check_id: str,
+        status: str,
+        activation_allowed: bool,
+        activation_scope: str,
+        severity: str = "info",
+        symbols: list[str] | tuple[str, ...] | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return self.diagnostic_check(
+            check_id=check_id,
+            check_family="replay",
+            status=status,
+            severity=severity,
+            symbols=symbols,
+            component="diagnostics",
+            activation_allowed=activation_allowed,
+            activation_scope=activation_scope,
+            **payload,
         )
 
     def cost_usage(

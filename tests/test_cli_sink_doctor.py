@@ -313,6 +313,62 @@ def test_cli_diagnose_generates_valid_decision_flow_events(
     assert validated["decision_flow_readiness"]["diagnostic_event_count"] == 5
 
 
+def test_cli_behavior_readiness_and_strict_behavior_profile(
+    tmp_path: Path,
+    capsys: object,
+) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    with client.run(run_type="behavior", symbols=["NVDA", "MSFT"]) as run:
+        events = [
+            run.symbol_behavior_state(
+                state_id="state_NVDA",
+                symbol="NVDA",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                trend_quality_score="90",
+                false_breakout_score="5",
+                winner_continuation_score="85",
+            ),
+            run.holding_exit_state(
+                state_id="holding_NVDA",
+                symbol="NVDA",
+                cut_loss_score="20",
+                expected_recovery_r="0.30",
+            ),
+            run.pairwise_rotation_review(
+                review_id="rotation_NVDA_MSFT",
+                board_id="board_1",
+                holding_symbol="NVDA",
+                candidate_symbol="MSFT",
+                review_status="included_review_only",
+                delta_u_r="0.40",
+                theta_rotation_r="0.25",
+            ),
+            run.threshold_replay(
+                suite_name="rotation-threshold-replay",
+                status="succeeded",
+                case_count=50,
+                threshold_policy_version="switch-threshold-v1",
+                selected_bad_rate="0.18",
+                selected_review_count="20",
+                leakage_guard_passed=True,
+            ),
+        ]
+    path = tmp_path / "behavior.jsonl"
+    JsonlSink(path).write_many(events)
+
+    assert main(["validate-jsonl", str(path), "--profile", "strict-behavior"]) == 0
+    validated = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert validated["behavior_intelligence_readiness"]["ready"] is True
+
+    assert main(["behavior-readiness", str(path)]) == 0
+    readiness = json.loads(capsys.readouterr().out)  # type: ignore[attr-defined]
+    assert readiness["can_explain_pairwise_rotation"] is True
+    assert readiness["can_calibrate_thresholds"] is True
+
+
 def test_cli_diagnose_can_fail_on_warning(tmp_path: Path, capsys: object) -> None:
     event = read_json_resource("schemas", "fixtures", "valid", "stale-market-tape.json")
     path = tmp_path / "events.jsonl"

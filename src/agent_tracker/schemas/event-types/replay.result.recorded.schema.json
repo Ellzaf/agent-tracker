@@ -41,6 +41,21 @@
             "prompt_hash": { "type": "string" },
             "prompt_version": { "type": "string" },
             "replay_suite_version": { "type": "string" },
+            "threshold_policy_version": { "type": "string" },
+            "threshold_pass_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "bad_rotation_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "selected_review_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "selected_bad_count": { "$ref": "#/$defs/nonNegativeNumber" },
+            "selected_bad_rate": { "$ref": "#/$defs/nonNegativeNumber" },
+            "bad_rate": { "$ref": "#/$defs/nonNegativeNumber" },
+            "activation_allowed": { "type": "boolean" },
+            "activation_scope": { "type": "string" },
+            "leakage_guard_passed": { "type": "boolean" },
+            "lookahead_guard_passed": { "type": "boolean" },
+            "outcome_window_closed": { "type": "boolean" },
+            "average_selected_forward_return_pct": {
+              "$ref": "#/$defs/finiteNumber"
+            },
             "build_id": { "type": "string" },
             "config_hash": { "type": "string" },
             "scenario_tags": {

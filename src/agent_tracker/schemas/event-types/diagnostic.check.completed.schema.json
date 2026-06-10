@@ -90,6 +90,18 @@
             "build_id": { "type": "string" },
             "config_hash": { "type": "string" },
             "replay_suite_version": { "type": "string" },
+            "activation_allowed": { "type": "boolean" },
+            "activation_scope": { "type": "string" },
+            "activation_passed_gates": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "activation_failed_gates": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "leakage_guard_passed": { "type": "boolean" },
+            "lookahead_guard_passed": { "type": "boolean" },
             "repair_hint_id": { "type": "string" },
             "data_quality_score_delta": { "$ref": "#/$defs/finiteNumber" }
           }

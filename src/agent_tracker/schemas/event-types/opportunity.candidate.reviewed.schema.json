@@ -80,6 +80,26 @@
             "targeted_by_optimizer": { "type": "boolean" },
             "excluded_by_candidate_limit": { "type": "boolean" },
             "tape_attention": { "type": "boolean" },
+            "holding_symbol": { "type": "string" },
+            "candidate_symbol": { "type": "string" },
+            "observer_decision": { "type": "string" },
+            "passes_threshold": { "type": "boolean" },
+            "market_regime": { "type": "string" },
+            "u_hold_r": { "$ref": "#/$defs/finiteNumber" },
+            "u_enter_r": { "$ref": "#/$defs/finiteNumber" },
+            "rotation_cost_r": { "$ref": "#/$defs/nonNegativeNumber" },
+            "delta_u_r": { "$ref": "#/$defs/finiteNumber" },
+            "theta_rotation_r": { "$ref": "#/$defs/nonNegativeNumber" },
+            "holding_exit_state": { "type": "string" },
+            "candidate_entry_state": { "type": "string" },
+            "primary_reasons": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "blocked_reasons": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
             "data_contract_status": {
               "enum": ["passed", "warning", "failed", "not_applicable"]
             }

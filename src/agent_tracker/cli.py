@@ -24,6 +24,7 @@ from agent_tracker.queue import LocalQueue
 from agent_tracker.reporting import (
     assess_agentic_security_readiness,
     assess_arena_readiness,
+    assess_behavior_intelligence_readiness,
     assess_decision_flow_readiness,
     assess_proof_readiness,
     assess_reporting_readiness,
@@ -54,6 +55,7 @@ _VALIDATION_PROFILES = {
     "ebook",
     "aitrade",
     "strict-base",
+    "strict-behavior",
     "strict-diagnostics",
     "strict-reporting",
     "strict-arena",
@@ -108,6 +110,14 @@ def _parser() -> argparse.ArgumentParser:
     decision_flow_readiness.add_argument("path")
     decision_flow_readiness.add_argument("--allow-full-io", action="store_true")
     decision_flow_readiness.set_defaults(func=_cmd_decision_flow_readiness)
+
+    behavior_readiness = subparsers.add_parser(
+        "behavior-readiness",
+        help="show symbol behavior, cut-loss, and rotation readiness",
+    )
+    behavior_readiness.add_argument("path")
+    behavior_readiness.add_argument("--allow-full-io", action="store_true")
+    behavior_readiness.set_defaults(func=_cmd_behavior_readiness)
 
     diagnose = subparsers.add_parser(
         "diagnose",
@@ -312,6 +322,10 @@ def _cmd_validate_jsonl(args: argparse.Namespace) -> int:
         result["decision_flow_readiness"] = assess_decision_flow_readiness(
             events
         ).to_dict()
+    if args.profile == "strict-behavior":
+        result["behavior_intelligence_readiness"] = (
+            assess_behavior_intelligence_readiness(events).to_dict()
+        )
     print(strict_json_dumps(result))
     return 0
 
@@ -334,6 +348,13 @@ def _cmd_decision_flow_readiness(args: argparse.Namespace) -> int:
     events = read_jsonl_events(args.path)
     assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
     print(strict_json_dumps(assess_decision_flow_readiness(events).to_dict()))
+    return 0
+
+
+def _cmd_behavior_readiness(args: argparse.Namespace) -> int:
+    events = read_jsonl_events(args.path)
+    assert_valid_agent_tracker_events(events, allow_full_io=args.allow_full_io)
+    print(strict_json_dumps(assess_behavior_intelligence_readiness(events).to_dict()))
     return 0
 
 

@@ -55,6 +55,7 @@ Add richer events when you want hosted stats and weekly repair prompts.
 | Memory or context reads | `memory.read.completed` |
 | Candidate boards and reviewed opportunities | `opportunity.board.recorded`, `opportunity.candidate.reviewed` |
 | Setup regimes and entry permissions | `setup.profile.recorded` |
+| Symbol behavior, cut-loss, and rotation reviews | `strategy.context.recorded`, `opportunity.candidate.reviewed`, `replay.result.recorded` |
 | Proposed allocation or action | `decision.proposed` |
 | Planned, skipped, clipped, or deferred actions | `action.outcome.recorded` |
 | Planned order before execution | `order.intent.recorded` |
@@ -289,6 +290,80 @@ with tracker.run(run_type="shadow_comparison") as run:
         scored=True,
     )
 ```
+
+## Add Behavior Intelligence
+
+If your agent scores symbols, tracks support/retest behavior, or compares one
+holding against a stronger candidate, record those facts as behavior
+intelligence. This is what lets Ellzaf explain issues such as timid entries,
+blind bottom-fishing, weak cut-loss logic, false breakouts, or rotating too
+quickly from a still-healthy holding.
+
+```python
+with tracker.run(run_type="allocation_observe", symbols=["NVDA", "MSFT"]) as run:
+    run.symbol_behavior_state(
+        state_id="state_NVDA_20260607",
+        symbol="NVDA",
+        model_version="behavior-v1",
+        primary_regime="trend_continuation",
+        entry_permission="eligible_starter",
+        trend_quality_score="88",
+        false_breakout_score="9",
+        winner_continuation_score="82",
+        expected_return_r_session="0.52",
+        expected_downside_r_session="-0.18",
+        source_refs=["bars:NVDA:2026-06-07T14:30:00Z"],
+    )
+
+    run.holding_exit_state(
+        state_id="holding_ACAD_20260607",
+        symbol="ACAD",
+        current_weight="0.31",
+        cut_loss_score="72",
+        support_break_score="64",
+        expected_recovery_r="0.18",
+        recommended_exit_state="trim_or_exit",
+        trim_to_cap_allowed=True,
+    )
+
+    run.pairwise_rotation_review(
+        review_id="rotation_ACAD_NVDA_20260607",
+        board_id="board_20260607",
+        holding_symbol="ACAD",
+        candidate_symbol="NVDA",
+        review_status="included_review_only",
+        passes_threshold=True,
+        u_hold_r="0.12",
+        u_enter_r="0.64",
+        rotation_cost_r="0.05",
+        delta_u_r="0.47",
+        theta_rotation_r="0.30",
+        primary_reasons=["candidate utility clears switch threshold"],
+    )
+
+    run.threshold_replay(
+        suite_name="rotation-threshold-replay",
+        status="succeeded",
+        case_count=300,
+        threshold_policy_version="switch-threshold-v1",
+        selected_review_count="40",
+        selected_bad_count="7",
+        selected_bad_rate="0.175",
+        leakage_guard_passed=True,
+        lookahead_guard_passed=True,
+        outcome_window_closed=True,
+    )
+```
+
+Run the local check before upload:
+
+```bash
+agent-tracker validate-jsonl ellzaf-events.jsonl --profile strict-behavior
+agent-tracker behavior-readiness ellzaf-events.jsonl
+```
+
+These events are observe-only telemetry. They do not tell the SDK to buy, sell,
+trim, or override your risk gate.
 
 ## Add Decision-Flow Diagnostics
 
@@ -528,6 +603,7 @@ Build local product artifacts:
 ```bash
 agent-tracker tier-readiness ellzaf-reporting.jsonl
 agent-tracker agentic-security-readiness ellzaf-reporting.jsonl
+agent-tracker behavior-readiness ellzaf-reporting.jsonl
 agent-tracker decision-flow-readiness ellzaf-reporting.jsonl
 agent-tracker diagnose ellzaf-reporting.jsonl --output ellzaf-diagnostics.jsonl
 agent-tracker proof-readiness ellzaf-reporting.jsonl

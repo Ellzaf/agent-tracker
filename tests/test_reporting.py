@@ -10,6 +10,7 @@ from agent_tracker.errors import SchemaValidationError
 from agent_tracker.reporting import (
     assess_agentic_security_readiness,
     assess_arena_readiness,
+    assess_behavior_intelligence_readiness,
     assess_decision_flow_readiness,
     assess_proof_readiness,
     assess_reporting_readiness,
@@ -396,6 +397,133 @@ def test_decision_flow_readiness_detects_failing_contracts(tmp_path: Path) -> No
         for event in diagnostics
     )
     assert_valid_agent_tracker_events(diagnostics)
+
+
+def test_behavior_intelligence_readiness_supports_rotation_and_cut_loss(
+    tmp_path: Path,
+) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    with client.run(run_type="allocation_observe", symbols=["NVDA", "MSFT"]) as run:
+        events = [
+            run.symbol_behavior_state(
+                state_id="state_NVDA",
+                symbol="NVDA",
+                model_version="behavior-v1",
+                primary_regime="trend_continuation",
+                entry_permission="eligible_starter",
+                trend_quality_score="88",
+                range_quality_score="24",
+                false_breakout_score="9",
+                winner_continuation_score="82",
+                average_down_legitimacy_score="7",
+                expected_return_r_session="0.52",
+                expected_downside_r_session="-0.18",
+                source_refs=["bars:NVDA:2026-06-07T14:30:00Z"],
+            ),
+            run.holding_exit_state(
+                state_id="holding_NVDA",
+                symbol="NVDA",
+                current_weight="-0.12",
+                support_break_score="12",
+                trend_break_score="8",
+                relative_weakness_score="18",
+                cut_loss_score="14",
+                expected_recovery_r="0.35",
+                recommended_exit_state="hold",
+                trim_to_cap_allowed=False,
+                winner_add_allowed=True,
+                average_down_allowed=False,
+            ),
+            run.pairwise_rotation_review(
+                review_id="rotation_NVDA_MSFT",
+                board_id="board_1",
+                holding_symbol="NVDA",
+                candidate_symbol="MSFT",
+                review_status="included_review_only",
+                rank="1",
+                passes_threshold=True,
+                u_hold_r="0.15",
+                u_enter_r="0.67",
+                rotation_cost_r="0.05",
+                delta_u_r="0.47",
+                theta_rotation_r="0.30",
+                primary_reasons=["candidate utility clears threshold"],
+            ),
+            run.threshold_replay(
+                suite_name="rotation-threshold-replay",
+                status="succeeded",
+                case_count=300,
+                threshold_policy_version="switch-threshold-v1",
+                threshold_pass_count="72",
+                selected_review_count="40",
+                selected_bad_count="7",
+                selected_bad_rate="0.175",
+                leakage_guard_passed=True,
+                lookahead_guard_passed=True,
+                outcome_window_closed=True,
+            ),
+            run.activation_gate(
+                check_id="behavior.activation_gate",
+                status="passed",
+                activation_allowed=True,
+                activation_scope="observe_only",
+                activation_passed_gates=["threshold_replay", "leakage_guard"],
+                leakage_guard_passed=True,
+            ),
+        ]
+
+    assert_valid_agent_tracker_events(events, profile="strict-behavior")
+    readiness = assess_behavior_intelligence_readiness(events)
+    assert readiness.ready is True
+    assert readiness.can_explain_entry_regimes is True
+    assert readiness.can_explain_cut_loss is True
+    assert readiness.can_explain_pairwise_rotation is True
+    assert readiness.can_calibrate_thresholds is True
+    assert readiness.can_check_leakage_guards is True
+    assert readiness.symbol_behavior_state_count == 1
+    assert readiness.holding_exit_state_count == 1
+    assert readiness.pairwise_rotation_review_count == 1
+    dataset = build_dataset_items(events)
+    invariants = {item["expected_invariant"] for item in dataset}
+    assert "symbol_behavior_state_preserved" in invariants
+    assert "holding_exit_state_preserved" in invariants
+    assert "pairwise_rotation_threshold_preserved" in invariants
+    assert "threshold_replay_preserves_leakage_guards" in invariants
+
+
+def test_behavior_intelligence_readiness_reports_gaps_and_guard_failures(
+    tmp_path: Path,
+) -> None:
+    client = AgentTracker(
+        Config(project="paper-agent", queue_dir=tmp_path, telemetry_enabled=False)
+    )
+    events = [
+        client.event(
+            "replay.result.recorded",
+            run_id="run_behavior_gap",
+            payload={
+                "suite_name": "rotation-threshold-replay",
+                "status": "failed",
+                "case_count": 12,
+                "threshold_policy_version": "switch-threshold-v1",
+                "selected_bad_rate": "0.42",
+                "threshold_pass_count": "5",
+                "leakage_guard_passed": False,
+            },
+        )
+    ]
+
+    readiness = assess_behavior_intelligence_readiness(events)
+
+    assert readiness.ready is False
+    assert "symbol_behavior_state" in readiness.gaps
+    assert "holding_exit_state" in readiness.gaps
+    assert "pairwise_rotation_review" in readiness.gaps
+    assert "leakage_guard_failed" in readiness.gaps
+    with pytest.raises(AssertionError, match="behavior intelligence"):
+        assert_valid_agent_tracker_events(events, profile="strict-behavior")
 
 
 def test_reporting_fixtures_are_strict_reporting_ready() -> None:

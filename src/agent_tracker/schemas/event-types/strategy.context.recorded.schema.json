@@ -14,6 +14,15 @@
     },
     "nullableFiniteNumber": {
       "anyOf": [{ "$ref": "#/$defs/finiteNumber" }, { "type": "null" }]
+    },
+    "scoreNumber": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "maximum": 100 },
+        {
+          "type": "string",
+          "pattern": "^[+]?(?:100(?:\\.0+)?|(?:[0-9]|[1-9][0-9])(?:\\.[0-9]+)?|\\.[0-9]+)$"
+        }
+      ]
     }
   },
   "allOf": [
@@ -28,6 +37,10 @@
           "properties": {
             "strategy_id": { "type": "string", "minLength": 1 },
             "strategy_name": { "type": ["string", "null"] },
+            "context_kind": { "type": "string" },
+            "symbol": { "type": "string" },
+            "authority": { "type": "string" },
+            "model_version": { "type": ["string", "null"] },
             "setup": { "type": ["string", "null"] },
             "playbook": { "type": ["string", "null"] },
             "timeframe": { "type": ["string", "null"] },
@@ -39,7 +52,52 @@
             "planned_reward_risk": { "$ref": "#/$defs/nullableFiniteNumber" },
             "market_regime": { "type": ["string", "null"] },
             "volatility_regime": { "type": ["string", "null"] },
-            "source_confidence": { "$ref": "#/$defs/nullableFiniteNumber" }
+            "source_confidence": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "primary_regime": { "type": ["string", "null"] },
+            "entry_permission": { "type": ["string", "null"] },
+            "research_freshness_state": { "type": ["string", "null"] },
+            "data_contract_status": {
+              "enum": ["passed", "warning", "failed", "not_applicable"]
+            },
+            "data_quality_score": { "$ref": "#/$defs/scoreNumber" },
+            "current_price": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "atr_pct": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "liquidity_score": { "$ref": "#/$defs/scoreNumber" },
+            "trend_quality_score": { "$ref": "#/$defs/scoreNumber" },
+            "range_quality_score": { "$ref": "#/$defs/scoreNumber" },
+            "false_breakout_score": { "$ref": "#/$defs/scoreNumber" },
+            "falling_knife_score": { "$ref": "#/$defs/scoreNumber" },
+            "winner_continuation_score": { "$ref": "#/$defs/scoreNumber" },
+            "average_down_legitimacy_score": { "$ref": "#/$defs/scoreNumber" },
+            "expected_return_r_session": {
+              "$ref": "#/$defs/nullableFiniteNumber"
+            },
+            "expected_downside_r_session": {
+              "$ref": "#/$defs/nullableFiniteNumber"
+            },
+            "current_weight": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "target_cap_weight": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "unrealized_pnl_pct": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "unrealized_pnl_r": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "trend_hold_bonus_r": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "range_bounce_protection_r": {
+              "$ref": "#/$defs/nullableFiniteNumber"
+            },
+            "support_break_score": { "$ref": "#/$defs/scoreNumber" },
+            "trend_break_score": { "$ref": "#/$defs/scoreNumber" },
+            "relative_weakness_score": { "$ref": "#/$defs/scoreNumber" },
+            "failed_reclaim_score": { "$ref": "#/$defs/scoreNumber" },
+            "cut_loss_score": { "$ref": "#/$defs/scoreNumber" },
+            "expected_recovery_r": { "$ref": "#/$defs/nullableFiniteNumber" },
+            "recommended_exit_state": { "type": ["string", "null"] },
+            "sell_guard_reason": { "type": ["string", "null"] },
+            "trim_to_cap_allowed": { "type": "boolean" },
+            "winner_add_allowed": { "type": "boolean" },
+            "average_down_allowed": { "type": "boolean" },
+            "source_refs": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
           }
         }
       }
