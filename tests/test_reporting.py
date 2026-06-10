@@ -324,7 +324,7 @@ def test_decision_flow_readiness_and_diagnostic_generation_are_generic(
                 build_id="build_1",
                 config_hash="sha256:config",
                 risk_gate_version="risk-1",
-                sdk_contract_version="0.4.0",
+                sdk_contract_version="0.5.0",
                 changed_since_last_replay=False,
                 post_change_verification_required=True,
             )

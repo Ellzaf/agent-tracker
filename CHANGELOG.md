@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-06-10
 
 - Added behavior-intelligence payload builders and `Run` helpers for symbol
   behavior state, holding exit state, pairwise rotation reviews, threshold
